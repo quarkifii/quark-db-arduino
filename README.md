@@ -39,8 +39,9 @@ See [examples](examples) folder.
 
 ## More Information
 
-More information of Quarkifi DB can be found [here](https://qstream.quarkifi.com/quarkdb/)
-For any issue please reach out to support@quarkifi.com or raise an issue
+More information of Quarkifi DB can be found [here](https://qstream.quarkifi.com/quarkdb/).
+
+For any issue please reach out to support@quarkifi.com or raise an issue.
 
 
 ## License
