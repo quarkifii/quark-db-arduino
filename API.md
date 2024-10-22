@@ -1,396 +1,255 @@
-# LoRa API
+
+# QuarkDB API
 
 ## Include Library
 
-```arduino
-#include <LoRa.h>
-```
+```arduino  
+#include  <QuarkDB.h> 
+```  
 
 ## Setup
 
 ### Begin
 
-Initialize the library with the specified frequency.
+Initialize the library with the specified file type (QUARKDB_SPIFFS_FILE_TYPE is supported now) .
 
-```arduino
-LoRa.begin(frequency);
+```arduino  
+bool status = quarkDB.init(QUARKDB_SPIFFS_FILE_TYPE);
+
+if(status)  {
+
+Serial.println("QuarkDB initialized");
+
+} 
+```  
+Returns `true` on success, `false` on failure.
+
+
+### Set Command Line Interface to process CLI Commands
+
+Initialize the Serial Interface
+```arduino 
+Serial.begin(115200);
 ```
- * `frequency` - frequency in Hz (`433E6`, `868E6`, `915E6`)
+Add the below line in loop() function.
 
-Returns `1` on success, `0` on failure.
-
-### Set pins
-
-Override the default `NSS`, `NRESET`, and `DIO0` pins used by the library. **Must** be called before `LoRa.begin()`.
-
-```arduino
-LoRa.setPins(ss, reset, dio0);
-```
- * `ss` - new slave select pin to use, defaults to `10`
- * `reset` - new reset pin to use, defaults to `9`
- * `dio0` - new DIO0 pin to use, defaults to `2`.  **Must** be interrupt capable via [attachInterrupt(...)](https://www.arduino.cc/en/Reference/AttachInterrupt).
-
-This call is optional and only needs to be used if you need to change the default pins used.
-
-#### No MCU controlled reset pin
-
-To save further pins one could connect the reset pin of the MCU with reset pin of the radio thus resetting only during startup.
-
-* `reset` - set to `-1` to omit this pin
-
-#### Pin dio0 interrupt callbacks
-
-The dio0 pin can be used for transmission finish callback and/or receiving callback, check `onTxDone` and `onReceive`.
-
-### Set SPI interface
-
-Override the default SPI interface used by the library. **Must** be called before `LoRa.begin()`.
-
-```arduino
-LoRa.setSPI(spi);
-```
- * `spi` - new SPI interface to use, defaults to `SPI`
-
-This call is optional and only needs to be used if you need to change the default SPI interface used, in the case your Arduino (or compatible) board has more than one SPI interface present.
-
-### Set SPI Frequency
-
-Override the default SPI frequency of 10 MHz used by the library. **Must** be called before `LoRa.begin()`.
-
-```arduino
-LoRa.setSPIFrequency(frequency);
-```
- * `frequency` - new SPI frequency to use, defaults to `8E6`
-
-This call is optional and only needs to be used if you need to change the default SPI frequency used. Some logic level converters cannot support high speeds such as 8 MHz, so a lower SPI frequency can be selected with `LoRa.setSPIFrequency(frequency)`.
-
-### End
-
-Stop the library
-
-```arduino
-LoRa.end()
-```
-
-## Sending data
-
-### Begin packet
-
-Start the sequence of sending a packet.
-
-```arduino
-LoRa.beginPacket();
-
-LoRa.beginPacket(implicitHeader);
-```
-
- * `implicitHeader` - (optional) `true` enables implicit header mode, `false` enables explicit header mode (default)
-
-Returns `1` if radio is ready to transmit, `0` if busy or on failure.
-
-### Writing
-
-Write data to the packet. Each packet can contain up to 255 bytes.
-
-```arduino
-LoRa.write(byte);
-
-LoRa.write(buffer, length);
-```
-* `byte` - single byte to write to packet
-
-or
-
-* `buffer` - data to write to packet
-* `length` - size of data to write
-
-Returns the number of bytes written.
-
-**Note:** Other Arduino `Print` API's can also be used to write data into the packet
-
-### End packet
-
-End the sequence of sending a packet.
-
-```arduino
-LoRa.endPacket();
-
-LoRa.endPacket(async);
-```
- * `async` - (optional) `true` enables non-blocking mode, `false` waits for transmission to be completed (default)
-
-Returns `1` on success, `0` on failure.
-
-### Tx Done
-
-**WARNING**: TxDone callback uses the interrupt pin on the `dio0` check `setPins` function!
-
-### Register callback
-
-Register a callback function for when a packet transmission finish.
-
-```arduino
-LoRa.onTxDone(onTxDone);
-
-void onTxDone() {
- // ...
+```arduino  
+void  loop()  {
+ quarkDB.processSerialCommand();
 }
+```  
+* This will process serial commands sent using serial monitor
+
+## DB Operations
+By default QuarkDB assumes each json record of 500 bytes maximum.
+By default QuarkDB assumes maximum 300 records in a list.
+Above defaults can be modified by relevant APIs as defined below
+
+### Create a DB List
+#### Using API
+```arduino  
+bool cStatus = quarkDB.createList("testMyList");
+
+if(cStatus)  {
+
+Serial.println("Successfully added List");
+
+}else  {
+
+Serial.println("Failed To add");
+
+}  
+```  
+#### Using Command Line using Serial Monitor
 ```
-
- * `onTxDone` - function to call when a packet transmission finish.
-
-## Receiving data
-
-### Parsing packet
-
-Check if a packet has been received.
-
-```arduino
-int packetSize = LoRa.parsePacket();
-
-int packetSize = LoRa.parsePacket(size);
-```
-
- * `size` - (optional) if `> 0` implicit header mode is enabled with the expected a packet of `size` bytes, default mode is explicit header mode
-
-
-Returns the packet size in bytes or `0` if no packet was received.
-
-### Continuous receive mode
-
-**WARNING**: Receive callback uses the interrupt pin on the `dio0`, check `setPins` function!
-
-#### Register callback
-
-Register a callback function for when a packet is received.
-
-```arduino
-LoRa.onReceive(onReceive);
-
-void onReceive(int packetSize) {
- // ...
+QUARKDB>db.create("testMyList")
+```  
+### Add Element to a DB List
+#### Using API
+```arduino  
+DynamicJsonDocument doc(MAX_RECORD_SIZE);
+doc["age"] = 23;
+doc["name"] = "John";
+bool statusA = quarkDB.addRecord("testMyList", doc.as<JsonObject>());
+if(statusA)  {
+ Serial.printf("Successfully added \n");
+}else  {
+ Serial.printf("ERROR:Failed To add \n ");
 }
+```  
+#### Using Command Line using Serial Monitor
 ```
-
- * `onReceive` - function to call when a packet is received.
-
-#### Receive mode
-
-Puts the radio in continuous receive mode.
-
-```arduino
-LoRa.receive();
-
-LoRa.receive(int size);
+QUARKDB>db.testMyList.add({"age" : 23 , "name" : "John"})
+```  
+### Get Total Record Count of a DB List
+#### Using API
+```arduino  
+int totalCount = quarkDB.getRecordCount("testMyList");
+```  
+#### Using Command Line using Serial Monitor
 ```
-
- * `size` - (optional) if `> 0` implicit header mode is enabled with the expected a packet of `size` bytes, default mode is explicit header mode
-
-The `onReceive` callback will be called when a packet is received.
-
-### Packet RSSI
-
-```arduino
-int rssi = LoRa.packetRssi();
+QUARKDB>db.testMyList.count()
 ```
+### Comparison Operators Supported for Data Retrieval
+$eq - Equality
+$gt - Greater Than
+$lt - Lesser Than
+$gte - Greter than or equal to
+$lte - Less than or equal to
+$eleMatch - Matching with array element
 
-Returns the averaged RSSI of the last received packet (dBm).
-
-### Packet SNR
-
-```arduino
-float snr = LoRa.packetSnr();
+### Get Records from a DB List with empty filter
+#### Using API
+Results are returned in a reference of DynamicJsonDocument passed
+```arduino  
+DynamicJsonDocument results(totalCount*MAX_RECORD_SIZE);
+//Get All records with empty filter
+int count = quarkDB.getRecords("testMyList" , "{}" , &results);
+serializeJson(results, Serial);
+```  
+#### Using Command Line using Serial Monitor
 ```
-
-Returns the estimated SNR of the received packet in dB.
-
-## RSSI
-
-```arduino
-int rssi = LoRa.rssi();
+QUARKDB>db.testMyList.find({})
 ```
-
-Returns the current RSSI of the radio (dBm). RSSI can be read at any time (during packet reception or not)
-
-### Packet Frequency Error
-
-```arduino
-long freqErr = LoRa.packetFrequencyError();
+### Get Records from a DB List with basic equality filter
+#### Using API
+Results are returned in a reference of DynamicJsonDocument passed
+```arduino  
+DynamicJsonDocument results(totalCount*MAX_RECORD_SIZE);
+//Get All records with records having age equal to 33
+int count = quarkDB.getRecords("testMyList" , "{\"age\" : 23 }" , &results);
+serializeJson(results, Serial);
+```  
+#### Using Command Line using Serial Monitor
 ```
-
-Returns the frequency error of the received packet in Hz. The frequency error is the frequency offset between the receiver centre frequency and that of an incoming LoRa signal.
-
-### Available
-
-```arduino
-int availableBytes = LoRa.available()
+QUARKDB>db.testMyList.find({"age" : 23})
 ```
-
-Returns number of bytes available for reading.
-
-### Peeking
-
-Peek at the next byte in the packet.
-
-```arduino
-byte b = LoRa.peek();
+### Get Records from a DB List with basic greater than filter
+#### Using API
+Results are returned in a reference of DynamicJsonDocument passed
+```arduino  
+DynamicJsonDocument results(totalCount*MAX_RECORD_SIZE);
+//Get All records with records having age equal to 33
+int count = quarkDB.getRecords("testMyList" , "{\"age\" : { \"$gt\" : 22 } }" , &results);
+serializeJson(results, Serial);
+```  
+#### Using Command Line using Serial Monitor
 ```
-
-Returns the next byte in the packet or `-1` if no bytes are available.
-
-### Reading
-
-Read the next byte from the packet.
-
-```arduino
-byte b = LoRa.read();
+QUARKDB>db.testMyList.find({"age" : {"$gt" : 22 }})
 ```
-
-Returns the next byte in the packet or `-1` if no bytes are available.
-
-**Note:** Other Arduino [`Stream` API's](https://www.arduino.cc/en/Reference/Stream) can also be used to read data from the packet
-
-## Other radio modes
-
-### Idle mode
-
-Put the radio in idle (standby) mode.
-
-```arduino
-LoRa.idle();
+### Get Records from a DB List with basic greater than or equal filter
+#### Using API
+Results are returned in a reference of DynamicJsonDocument passed
+```arduino  
+DynamicJsonDocument results(totalCount*MAX_RECORD_SIZE);
+//Get All records with records having age equal to 33
+int count = quarkDB.getRecords("testMyList" , "{\"age\" : { \"$gte\" : 22 } }" , &results);
+serializeJson(results, Serial);
+```  
+#### Using Command Line using Serial Monitor
 ```
-
-### Sleep mode
-
-Put the radio in sleep mode.
-
-```arduino
-LoRa.sleep();
+QUARKDB>db.testMyList.find({"age" : {"$gte" : 22 }})
 ```
-
-## Radio parameters
-
-### TX Power
-
-Change the TX power of the radio.
-
-```arduino
-LoRa.setTxPower(txPower);
-
-LoRa.setTxPower(txPower, outputPin);
+### Get Records from a DB List with basic less than filter
+#### Using API
+Results are returned in a reference of DynamicJsonDocument passed
+```arduino  
+DynamicJsonDocument results(totalCount*MAX_RECORD_SIZE);
+//Get All records with records having age equal to 33
+int count = quarkDB.getRecords("testMyList" , "{\"age\" : { \"$lt\" : 25 } }" , &results);
+serializeJson(results, Serial);
+```  
+#### Using Command Line using Serial Monitor
 ```
- * `txPower` - TX power in dB, defaults to `17`
- * `outputPin` - (optional) PA output pin, supported values are `PA_OUTPUT_RFO_PIN` and `PA_OUTPUT_PA_BOOST_PIN`, defaults to `PA_OUTPUT_PA_BOOST_PIN`.
-
-Supported values are `2` to `20` for `PA_OUTPUT_PA_BOOST_PIN`, and `0` to `14` for `PA_OUTPUT_RFO_PIN`.
-
-Most modules have the PA output pin connected to PA BOOST,
-
-### Frequency
-
-Change the frequency of the radio.
-
-```arduino
-LoRa.setFrequency(frequency);
+QUARKDB>db.testMyList.find({"age" : {"$lt" : 25 }})
 ```
- * `frequency` - frequency in Hz (`433E6`, `866E6`, `915E6`)
-
-### Spreading Factor
-
-Change the spreading factor of the radio.
-
-```arduino
-LoRa.setSpreadingFactor(spreadingFactor);
+### Get Records from a DB List with basic less than or equal filter
+#### Using API
+Results are returned in a reference of DynamicJsonDocument passed
+```arduino  
+DynamicJsonDocument results(totalCount*MAX_RECORD_SIZE);
+//Get All records with records having age equal to 33
+int count = quarkDB.getRecords("testMyList" , "{\"age\" : { \"$lte\" : 25 } }" , &results);
+serializeJson(results, Serial);
+```  
+#### Command Line using Serial Monitor
 ```
- * `spreadingFactor` - spreading factor, defaults to `7`
-
-Supported values are between `6` and `12`. If a spreading factor of `6` is set, implicit header mode must be used to transmit and receive packets.
-
-### Signal Bandwidth
-
-Change the signal bandwidth of the radio.
-
-```arduino
-LoRa.setSignalBandwidth(signalBandwidth);
+QUARKDB>db.testMyList.find({"age" : {"$lte" : 25 }})
 ```
+### Get Records from a DB List with matching element within an array
+Suppose elements are as follows
+[
+{ innerArray : [1,2,3,4] , id : "test1"},
+{ innerArray : [5,6,7,8] , id : "test2"},
+]
 
- * `signalBandwidth` - signal bandwidth in Hz, defaults to `125E3`.
-
-Supported values are `7.8E3`, `10.4E3`, `15.6E3`, `20.8E3`, `31.25E3`, `41.7E3`, `62.5E3`, `125E3`, `250E3`, and `500E3`.
-
-### Coding Rate
-
-Change the coding rate of the radio.
-
-```arduino
-LoRa.setCodingRate4(codingRateDenominator);
+#### Using API
+Results are returned in a reference of DynamicJsonDocument passed
+```arduino  
+DynamicJsonDocument results(totalCount*MAX_RECORD_SIZE);
+//Get All records with records having inner array one element equal to 2
+int count = quarkDB.getRecords("testMyList" , "{\"innerArray\"  : { \"$eleMatch\": { \"$eq\" : 2 } } }" , &results);
+serializeJson(results, Serial);
+```  
+#### Command Line using Serial Monitor
 ```
-
- * `codingRateDenominator` - denominator of the coding rate, defaults to `5`
-
-Supported values are between `5` and `8`, these correspond to coding rates of `4/5` and `4/8`. The coding rate numerator is fixed at `4`.
-
-### Preamble Length
-
-Change the preamble length of the radio.
-
-```arduino
-LoRa.setPreambleLength(preambleLength);
+QUARKDB>db.testMyList.find({"innerArray" : { "$eleMatch" : {"$eq" : 2 }}})
 ```
-
- * `preambleLength` - preamble length in symbols, defaults to `8`
-
-Supported values are between `6` and `65535`.
-
-### Sync Word
-
-Change the sync word of the radio.
-
-```arduino
-LoRa.setSyncWord(syncWord);
+### Update Record
+#### Using API
+Pass the filter to match records and the new updated object to replace matched records. Partial update is not supported now
+```arduino  
+DynamicJsonDocument updateDoc(MAX_RECORD_SIZE);
+updateDoc["name"] = "Alter";
+updateDoc["age"] = 43;
+//pass the list name, matching selector and the new object to replace for all matched records
+int updateCount = quarkDB.updateRecords("testMyList", "{\"age\" : 23 }" , updateDoc.as<JsonObject>());
+```  
+#### Command Line using Serial Monitor
 ```
-
- * `syncWord` - byte value to use as the sync word, defaults to `0x12`
-
-### CRC
-
-Enable or disable CRC usage, by default a CRC is not used.
-
-```arduino
-LoRa.enableCrc();
-
-LoRa.disableCrc();
+QUARKDB>db.testMyList.update({ "filter" : {"age" : 23} , "updateObj" : {"age" : 43 , "name" : "Alter"} })
 ```
-
-### Invert IQ Signals
-
-Enable or disable Invert the LoRa I and Q signals, by default a invertIQ is not used.
-
-```arduino
-LoRa.enableInvertIQ();
-
-LoRa.disableInvertIQ();
+### Delete Record
+#### Using API
+Pass the filter to match records and delete
+```arduino  
+int deleteCount = quarkDB.deleteRecords("testMyList", "{\"age\" : 33 }"  );
+```  
+#### Command Line using Serial Monitor
 ```
-### LNA Gain
-
-Set LNA Gain for better RX sensitivity, by default AGC (Automatic Gain Control) is used and LNA gain is not used.
-
-```arduino
-LoRa.setGain(gain);
+QUARKDB>db.testMyList.delete({"age" : 33})
 ```
-
- * `gain` - LNA gain
-
-Supported values are between `0` and `6`. If gain is 0, AGC will be enabled and LNA gain will not be used. Else if gain is from 1 to 6, AGC will be disabled and LNA gain will be used.
-
-## Other functions
-
-### Random
-
-Generate a random byte, based on the Wideband RSSI measurement.
-
+### Delete List
+#### Using API
+Pass the list name to delete
+```arduino  
+bool dStatus = quarkDB.deleteList("testMyList");
+if(dStatus)  {
+ Serial.println("Successfully deleted List");
+}else  {
+ Serial.println("Failed To delete");
+}
+```  
+#### Command Line using Serial Monitor
 ```
-byte b = LoRa.random();
+QUARKDB>db.delete("testMyList")
 ```
-
-Returns random byte.
+### Update Max Size for each Record
+#### Using API
+Pass the size in bytes
+```arduino  
+quarkDB.setMaxRecordSize(600);
+```  
+#### Command Line using Serial Monitor
+```
+QUARKDB>set max_record_size=600
+```
+### Update Max Records for a List
+#### Using API
+```arduino  
+quarkDB.setMaxRecords(600);
+```  
+#### Command Line using Serial Monitor
+```
+QUARKDB>set max_records=600
+```
