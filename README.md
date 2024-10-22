@@ -2,7 +2,7 @@
 
 
 # QuarkDB
-## NoSQL Database for ESP8266 and ESP32
+## NoSQL Database for Arduino Based Boards
 ### Use API or CLI like any DB
 An [Arduino](https://arduino.cc/) library for managing data just like any other NoSQL DB.     
 Data managed using ArduinoJson and SPIFFS file system for ESP boards.    
@@ -25,7 +25,11 @@ API and usage details can be found [here](/API.md)
 4. Click the `Install` button to install the library.
 
 ### Using Git
-``` cd ~/Documents/Arduino/libraries/ git clone https://github.com/quarkifii/quark-db-aurdino QuarkDB ``` ## API and CLI
+``` 
+cd ~/Documents/Arduino/libraries/ 
+git clone https://github.com/quarkifii/quark-db-aurdino QuarkDB 
+``` 
+## API and CLI
 
 See [API and CLI commands](/API.md).
 
