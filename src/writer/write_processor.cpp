@@ -1,9 +1,35 @@
+// The MIT License (MIT)
+//
+// Copyright (c) 2024 Quarkifi Technologies Pvt Ltd
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+//This is the implementation for all write operations
 #include "write_processor.h"
-#include "db_utils.h"
-#include "filter_processor.h"
+#include "../utils/db_utils.h"
+#include "../filter/filter_processor.h"
 #include <ArduinoJson.h>
 #include <SPI.h>
 #include <FS.h>
+#if defined (ESP32)
+#include <SPIFFS.h>
+#endif
 
 
 
@@ -14,10 +40,7 @@ DBWriteProcessor::DBWriteProcessor(byte fileMode) {
   dbUtils = new DBUtils();
   dbFilter = new DBFilterProcessor();
 }
-void DBWriteProcessor::init() {
-
-}
-
+// Create a list in the filesystem
 bool DBWriteProcessor::createList(String listName) {
   listName.trim();
   if(!dbUtils->validateListName(listName.c_str())) {
@@ -29,9 +52,7 @@ bool DBWriteProcessor::createList(String listName) {
     Serial.println("ERROR:List already exists ->" + listName );
     return false;
   }
-  if (this->fileMode == 2) {
-    file = SPIFFS.open(fileName, "w");
-  }
+  file = SPIFFS.open(fileName, "w");
   if (!file) {
     Serial.println("Error opening file for writing");
     return false;
@@ -40,7 +61,7 @@ bool DBWriteProcessor::createList(String listName) {
   return true;
 }
 
-
+// Remove a list in the filesystem
 bool DBWriteProcessor::deleteList(String listName) {
   listName.trim();
   if(!dbUtils->validateListName(listName.c_str())) {
@@ -51,12 +72,11 @@ bool DBWriteProcessor::deleteList(String listName) {
     Serial.println("ERROR:List does not exist ->" + listName );
     return false;
   }
-  if (this->fileMode == 2) {
-    SPIFFS.remove(fileName);
-  }
+  SPIFFS.remove(fileName);
   return true;
 }
 
+// Update records in the list
 int DBWriteProcessor::updateRecords(String listName , String selector,JsonObject* jsonObject) {
   DynamicJsonDocument filterDoc(__QUARKDB_JSON_STRING_SIZE__);
   DeserializationError error = deserializeJson(filterDoc, selector);
@@ -69,6 +89,7 @@ int DBWriteProcessor::updateRecords(String listName , String selector,JsonObject
   return this->updateFromJson(listName, &filterDoc , updateObjectJson);
 }
 
+// Update records in the list
 int DBWriteProcessor::updateFromJson(String listName, DynamicJsonDocument* filterDoc, String updateObjectJson) {
   listName.trim();
   if (!dbUtils->validateListName(listName.c_str())) {
@@ -77,19 +98,14 @@ int DBWriteProcessor::updateFromJson(String listName, DynamicJsonDocument* filte
   File dataFile;
   String fileName = "/__quarkdb__/" +listName + +".jsonl";
   if (!SPIFFS.exists(fileName)) {
-    // Serial.println("ERROR:List does not exist ->" + listName);
     return -1;
   }
-
-  if (this->fileMode == 2) {
-    dataFile = SPIFFS.open(fileName, "r");
-  }
+  dataFile = SPIFFS.open(fileName, "r");
   String finalString = "";
   int updateCount = 0;
   if (dataFile) {
     while (dataFile.available()) {
       String jsonString = dataFile.readStringUntil('\n');
-      //Serial.println(" read line is " + jsonString);
       DynamicJsonDocument jsonLineDocument(this->maxRecordSize);
       DeserializationError error = deserializeJson(jsonLineDocument, jsonString);
       if(error || jsonString == "") {
@@ -116,9 +132,7 @@ int DBWriteProcessor::updateFromJson(String listName, DynamicJsonDocument* filte
       }
     }
     dataFile.close();
-    if (this->fileMode == 2) {
-      dataFile = SPIFFS.open(fileName, "w");
-    }
+    dataFile = SPIFFS.open(fileName, "w");
     if (!dataFile) {
       Serial.println("Error opening file for writing");
       return -1;
@@ -131,6 +145,7 @@ int DBWriteProcessor::updateFromJson(String listName, DynamicJsonDocument* filte
   return updateCount;
 }
 
+// Delete records in the list
 int DBWriteProcessor::deleteRecords(String listName, String selector) {
  DynamicJsonDocument filterDoc(maxRecordSize);
   DeserializationError error = deserializeJson(filterDoc, selector);
@@ -140,7 +155,7 @@ int DBWriteProcessor::deleteRecords(String listName, String selector) {
   }
   return this->deleteFromJson(listName, &filterDoc);
 }
-
+// Delete records in the list
 int DBWriteProcessor::deleteFromJson(String listName, DynamicJsonDocument* filterDoc) {
   listName.trim();
   if (!dbUtils->validateListName(listName.c_str())) {
@@ -149,19 +164,14 @@ int DBWriteProcessor::deleteFromJson(String listName, DynamicJsonDocument* filte
   File dataFile;
   String fileName = "/__quarkdb__/" +listName + +".jsonl";
   if (!SPIFFS.exists(fileName)) {
-    // Serial.println("ERROR:List does not exist ->" + listName);
     return false;
   }
-
-  if (this->fileMode == 2) {
-    dataFile = SPIFFS.open(fileName, "r");
-  }
+  dataFile = SPIFFS.open(fileName, "r");
   String finalString = "";
   int deleteCount = 0;
   if (dataFile) {
     while (dataFile.available()) {
       String jsonString = dataFile.readStringUntil('\n');
-      //Serial.println(" read line is " + jsonString);
       DynamicJsonDocument jsonLineDocument(this->maxRecordSize);
       DeserializationError error = deserializeJson(jsonLineDocument, jsonString);
       if(error || jsonString == "") {
@@ -181,9 +191,7 @@ int DBWriteProcessor::deleteFromJson(String listName, DynamicJsonDocument* filte
       }
     }
     dataFile.close();
-    if (this->fileMode == 2) {
-      dataFile = SPIFFS.open(fileName, "w");
-    }
+    dataFile = SPIFFS.open(fileName, "w");
     if (!dataFile) {
       Serial.println("Error opening file for writing");
       return -1;
@@ -196,7 +204,7 @@ int DBWriteProcessor::deleteFromJson(String listName, DynamicJsonDocument* filte
   return deleteCount;
 }
 
-
+// Add record in the list
 bool DBWriteProcessor::addRecord(String listName, JsonObject* jsonObject) {
   listName.trim();
   if(!dbUtils->validateListName(listName.c_str())) {
@@ -211,9 +219,7 @@ bool DBWriteProcessor::addRecord(String listName, JsonObject* jsonObject) {
   String jsonString;
   File file;
   serializeJson((*jsonObject), jsonString);
-  if (this->fileMode == 2) {
-    file = SPIFFS.open(fileName, "a");
-  }
+  file = SPIFFS.open(fileName, "a");
   if (!file) {
     Serial.println("Error opening file for writing");
     return false;
@@ -221,9 +227,5 @@ bool DBWriteProcessor::addRecord(String listName, JsonObject* jsonObject) {
   file.println(jsonString);
   Serial.println("writing record " +jsonString );
   file.close();
-  return true;
-}
-
-bool DBWriteProcessor::removeAllLists() {
   return true;
 }

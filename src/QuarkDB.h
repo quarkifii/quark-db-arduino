@@ -20,21 +20,43 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-// Filter interface
-#ifndef QUARK_DB_FILTER_H
-#define QUARK_DB_FILTER_H
+#ifndef QUARK_DB_H
+#define QUARK_DB_H
+
+#include "reader/read_processor.h"
+#include "writer/write_processor.h"
+#include "command/command_parser.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
-#include "../utils/db_utils.h"
 
-class DBFilterProcessor {
+
+class QuarkDB {
+  
   private:
-    DBUtils* dbUtils; 
-    bool innerObjectParse(JsonPair kvx,JsonVariant jsonCheckObject);
-    JsonVariant navigateJson(JsonVariant root, const char* path);
+    byte fileMode;
+    int maxRecords;
+    int maxRecordSize;
+    String databaseName;
+    DBReadProcessor* readProcessor;
+    DBWriteProcessor* writeProcessor;
+    CommandParser* commandParser;
   public:
-    DBFilterProcessor();
-    bool filterParse(JsonObject rootFilter , JsonVariant jsonLineDocument ,bool isArray);
+    QuarkDB();
+    bool init(byte mode);
+    bool createList(String listName);
+    void processSerialCommand();
+    bool deleteList(String listName);
+    int getRecordCount(String listName);
+    int getRecords(String listName, String selector, DynamicJsonDocument* resultDocument);
+    int getRecords(String listName, String selector, DynamicJsonDocument* resultDocument , byte limitRows);
+    int updateRecords(String listName , String selector,JsonObject document);
+    int deleteRecords(String listName , String selector);
+    bool addRecord(String listName, JsonObject document);
+    bool removeRecords(String listName); 
+    bool removeAllLists(); 
+    void setMaxRecords(int maxRecords);
+    void setMaxRecordSize(int maxRecordSize);       
+    DynamicJsonDocument * getDBStat();
 };
 
 #endif

@@ -1,10 +1,42 @@
-#include "read_processor.h"
-#include "write_processor.h"
+// The MIT License (MIT)
+//
+// Copyright (c) 2024 Quarkifi Technologies Pvt Ltd
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+
+//CLI implementation
+//Examples in serial interface
+//QUARKDB>db.create("test")
+//QUARKDB>db.test.add({"test" : 22})
+//QUARKDB>db.test.find({"test" : 22})
+//QUARKDB>db.delete("test")
+#include "../reader/read_processor.h"
+#include "../writer/write_processor.h"
 #include "command_parser.h"
-#include "db_utils.h"
+#include "../utils/db_utils.h"
 #include <ArduinoJson.h>
 #include <SPI.h>
 #include <FS.h>
+#if defined (ESP32)
+#include <SPIFFS.h>
+#endif
 
 CommandParser::CommandParser(byte mode) {
   this->fileMode = fileMode;
@@ -14,13 +46,34 @@ CommandParser::CommandParser(byte mode) {
   dbUtils = new DBUtils();
 }
 
+//Initialize
 void CommandParser::init(DBReadProcessor* readProcessor, DBWriteProcessor* writeProcessor) {
   this->readProcessor = readProcessor;
   this->writeProcessor = writeProcessor;
 }
+String sterilizeCommandPart(String tokStr) {
+ String fullCommand = tokStr.substring(tokStr.indexOf("("));
+ if(!fullCommand.startsWith("(") || fullCommand.lastIndexOf(")") != fullCommand.length() - 1) {
+  return "ERROR:Use valid command";
+ }
+ return "";
+}
+String sterilizeCommandList(String tokStr , String mainRefCommand) {
+ String error = sterilizeCommandPart(tokStr);
+ if(error != "") {
+  return error;
+ }
+ String commandList = mainRefCommand.substring(mainRefCommand.indexOf("(") + 1, mainRefCommand.lastIndexOf(")"));
+ commandList.trim();
+ return commandList;
+}
+
+
+//Process command to parse out different types of commands
 String CommandParser::processCommand(String cmd) {
-  String mainCommand = cmd.substring(8);
-  String mainRefCommand = String(mainCommand);
+  String coreCmd = cmd.substring(8);
+  String mainCommand = coreCmd.substring(0,coreCmd.indexOf("("));
+  String mainRefCommand = String(coreCmd);
   mainRefCommand.trim();
   if (mainRefCommand.startsWith("set max_records=")) {
     String maxRecordsIn = mainRefCommand.substring(mainRefCommand.indexOf("=") + 1);
@@ -30,7 +83,7 @@ String CommandParser::processCommand(String cmd) {
       this->maxRecords = maxRecordsInt;
       return " Successfully set";
     } else {
-      return "Invalid value";
+      return "ERROR:Invalid value";
     }
   }
   if (mainRefCommand.startsWith("set max_record_size=")) {
@@ -41,21 +94,11 @@ String CommandParser::processCommand(String cmd) {
       this->maxRecordSize = maxRecordSizeInt;
       return " Successfully set";
     } else {
-      return "Invalid value";
+      return "ERROR:Invalid value";
     }
   }
   if (mainRefCommand.startsWith("show lists")) {
-    Dir dir = SPIFFS.openDir("/");
-    String lists = "Lists found are..";
-    while (dir.next()) {
-      if (dir.fileName().startsWith("/__quarkdb__")) {
-        lists = lists + "\n" + dir.fileName().substring(dir.fileName().lastIndexOf("/") + 1, dir.fileName().lastIndexOf("."));
-      }
-    }
-    if(lists == "Lists found are..") {
-      return " No Lists Found";
-    }
-    return lists;
+    return readProcessor->getListNames();
   }
   char* token = strtok((char*)mainCommand.c_str(), ".");
   short tokenCount = 0;
@@ -63,28 +106,27 @@ String CommandParser::processCommand(String cmd) {
   bool isDelete = false;
   String listName = "";
   while (token != NULL) {
-    //Serial.println(token);
-
     String tokStr = String(token);
     tokStr.trim();
-    //Serial.println("token str is" + tokStr);
     if (tokenCount == 0 and tokStr != "db") {
-      return "Invalid command -> " + tokStr;
+      return "ERROR:Invalid command -> " + tokStr;
     }
     if (tokenCount == 1 && tokStr.length() == 0) {
-      return "Invalid command -> Empty db";
+      return "ERROR:Invalid command -> Empty db";
     }
     if (tokenCount == 1 && tokStr.length() > 0 && tokStr.startsWith("create", 0)) {
-      String lName = preProcessCommand(tokStr);
+      String fullCommand = sterilizeCommandPart(coreCmd);
+      if(fullCommand != "") return fullCommand;
+      String lName = preProcessCommand(coreCmd);
       if (!lName.startsWith("ERROR:")) {
         return processCreate(lName);
       }
       return lName;
-      //return handleListCreate(tokStr);
-      // return "Command -> Create List";
     }
     if (tokenCount == 1 && tokStr.length() > 0 && tokStr.startsWith("delete", 0)) {
-      String lName = preProcessCommand(tokStr);
+      String fullCommand = sterilizeCommandPart(coreCmd);
+      if(fullCommand != "") return fullCommand;
+      String lName = preProcessCommand(coreCmd);
       if (!lName.startsWith("ERROR:")) {
         return processDelete(lName);
       }
@@ -94,8 +136,8 @@ String CommandParser::processCommand(String cmd) {
       listName = tokStr;
     }
     if (tokenCount == 2 && tokStr.length() > 0 && tokStr.startsWith("add", 0)) {
-      String commandList = mainRefCommand.substring(mainRefCommand.indexOf("(") + 1, mainRefCommand.lastIndexOf(")"));
-      commandList.trim();
+      String commandList = sterilizeCommandList(coreCmd , mainRefCommand);
+      if (commandList.startsWith("ERROR:")) return commandList;
       String json = preProcessListCommand(listName, commandList);
       if (!json.startsWith("ERROR:")) {
         return processAdd(listName, json);
@@ -103,8 +145,8 @@ String CommandParser::processCommand(String cmd) {
       return json;
     }
     if (tokenCount == 2 && tokStr.length() > 0 && tokStr.startsWith("find", 0)) {
-      String commandList = mainRefCommand.substring(mainRefCommand.indexOf("(") + 1, mainRefCommand.lastIndexOf(")"));
-      commandList.trim();
+      String commandList = sterilizeCommandList(coreCmd , mainRefCommand);
+      if (commandList.startsWith("ERROR:")) return commandList;
       String json = preProcessListCommand(listName, commandList);
       if (!json.startsWith("ERROR:")) {
         return processGet(listName, json);
@@ -115,8 +157,8 @@ String CommandParser::processCommand(String cmd) {
        return processGetCount(listName);
     }
     if (tokenCount == 2 && tokStr.length() > 0 && tokStr.startsWith("update", 0)) {
-      String commandList = mainRefCommand.substring(mainRefCommand.indexOf("(") + 1, mainRefCommand.lastIndexOf(")"));
-      commandList.trim();
+      String commandList = sterilizeCommandList(coreCmd , mainRefCommand);
+      if (commandList.startsWith("ERROR:")) return commandList;
       String json = preProcessListCommand(listName, commandList);
       if (!json.startsWith("ERROR:")) {
         return processSet(listName, json);
@@ -124,8 +166,8 @@ String CommandParser::processCommand(String cmd) {
       return json;
     }
     if (tokenCount == 2 && tokStr.length() > 0 && tokStr.startsWith("delete", 0)) {
-      String commandList = mainRefCommand.substring(mainRefCommand.indexOf("(") + 1, mainRefCommand.lastIndexOf(")"));
-      commandList.trim();
+      String commandList = sterilizeCommandList(coreCmd , mainRefCommand);
+      if (commandList.startsWith("ERROR:")) return commandList;
       String json = preProcessListCommand(listName, commandList);
       if (!json.startsWith("ERROR:")) {
         return processDelete(listName, json);
@@ -138,14 +180,10 @@ String CommandParser::processCommand(String cmd) {
     }
     token = strtok(NULL, ".");
   }
-
-
   return "Invalid Command -> " + cmd.substring(8);
 }
 
-//QUARKDB>db.hhg.vvf testTEST_- test
-//QUARKDB>db.test.find({"test" : 22})
-
+// Preprocess command to create and delete list
 String CommandParser::preProcessCommand(String command) {
   String listName = command.substring(command.indexOf("(") + 1, command.lastIndexOf(")"));
   listName.trim();
@@ -160,18 +198,17 @@ String CommandParser::preProcessCommand(String command) {
   return fList;
 }
 
+// Preprocess command to perform list specific operations
 String CommandParser::preProcessListCommand(String listName, String commandList) {
-
-  //Serial.println("commandlist is" + commandList);
   if (!commandList.startsWith("{") || commandList.lastIndexOf("}") != commandList.length() - 1) {
     return "ERROR:Add valid json object with {}";
   }
   String json = commandList.substring(commandList.indexOf("{"), commandList.lastIndexOf("}")) + "}";
   json.trim();
-
   return json;
 }
 
+// Process list get from the db
 String CommandParser::processGet(String listName, String filter) {
   DynamicJsonDocument doc(__QUARKDB_FILTER_SIZE__);
   DeserializationError error = deserializeJson(doc, filter);
@@ -201,7 +238,7 @@ String CommandParser::processGet(String listName, String filter) {
   }
   return String(resCount) +"/" + String(total) + " Records Retrieved [max records set : " + String(maxRecords) + " bytes, max single record size set : " + String(maxRecordSize) + "bytes ]";
 }
-
+// Process list count from the db
 String CommandParser::processGetCount(String listName) {
   int status = readProcessor->getRecordCount(listName);
   if (status == -1) {
@@ -209,7 +246,7 @@ String CommandParser::processGetCount(String listName) {
   }
   return "Total Count -> " + String(status) + " [max records set : " + String(maxRecords) + ", max single record size set : " + String(maxRecordSize) + " ]";
 }
-
+// Process list delete from the db
 String CommandParser::processDelete(String listName, String filter) {
   DynamicJsonDocument doc(__QUARKDB_FILTER_SIZE__);
   DeserializationError error = deserializeJson(doc, filter);
@@ -223,7 +260,7 @@ String CommandParser::processDelete(String listName, String filter) {
   }
   return "Results Deleted Count [" + String(status) +   "]";
 }
-
+// Process list update in the db
 String CommandParser::processSet(String listName, String updateCommand) {
   DynamicJsonDocument doc(__QUARKDB_UPDATE_CMD_SIZE__);
   DeserializationError error = deserializeJson(doc, updateCommand);
@@ -233,7 +270,7 @@ String CommandParser::processSet(String listName, String updateCommand) {
 
   JsonObject filter = doc["filter"];
   JsonObject updateObj = doc["updateObj"];
-  if(filter == NULL || updateObj == NULL) {
+  if(filter.isNull() || updateObj.isNull()) {
     return "ERROR: Invalid updateCommand . Please pass filter and updateObj ->" + updateCommand;
   }
   String filterStr;
@@ -244,7 +281,7 @@ String CommandParser::processSet(String listName, String updateCommand) {
   }
    return "Results Updated Count [" + String(status)  +  "]";
 }
-
+// Process list add element to the db
 String CommandParser::processAdd(String listName, String json) {
   DynamicJsonDocument doc(maxRecordSize);
   DeserializationError error = deserializeJson(doc, json);
@@ -260,7 +297,7 @@ String CommandParser::processAdd(String listName, String json) {
     return "Failed to add into ->" + listName;
   }
 }
-
+// Process list addition in the db
 String CommandParser::processCreate(String listName) {
   listName.trim();
   if (!dbUtils->validateListName(listName.c_str())) {
@@ -273,7 +310,7 @@ String CommandParser::processCreate(String listName) {
     return "Failed to create ->" + listName;
   }
 }
-
+// Process list deletion from the db
 String CommandParser::processDelete(String listName) {
   listName.trim();
   if (!dbUtils->validateListName(listName.c_str())) {
@@ -286,3 +323,5 @@ String CommandParser::processDelete(String listName) {
     return "Failed to delete ->" + listName;
   }
 }
+
+

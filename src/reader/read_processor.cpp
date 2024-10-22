@@ -1,9 +1,35 @@
+// The MIT License (MIT)
+//
+// Copyright (c) 2024 Quarkifi Technologies Pvt Ltd
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+//Reader implementation
 #include "read_processor.h"
-#include "db_utils.h"
-#include "filter_processor.h"
+#include "../utils/db_utils.h"
+#include "../filter/filter_processor.h"
 #include <ArduinoJson.h>
 #include <SPI.h>
 #include <FS.h>
+#if defined (ESP32)
+#include <SPIFFS.h>
+#endif
 
 DBReadProcessor::DBReadProcessor(byte fileMode) {
   this->fileMode = fileMode;
@@ -12,13 +38,13 @@ DBReadProcessor::DBReadProcessor(byte fileMode) {
   dbUtils = new DBUtils();
   dbFilter = new DBFilterProcessor();
 }
-void DBReadProcessor::init() {
-}
 
+//Get record count
 int DBReadProcessor::getRecordCount(String listName) {
   return this->queryJsonCount(listName);
 }
 
+//Get records in json Array
 int DBReadProcessor::getRecords(String listName, String filter, DynamicJsonDocument* resultDoc, int limitRows) {
   DynamicJsonDocument filterDoc(__QUARKDB_FILTER_SIZE__);
   DeserializationError error = deserializeJson(filterDoc, filter);
@@ -30,7 +56,7 @@ int DBReadProcessor::getRecords(String listName, String filter, DynamicJsonDocum
 }
 
 
-
+//Get records in json Array
 int DBReadProcessor::queryJson(String listName, DynamicJsonDocument* filterDoc, DynamicJsonDocument* resultDocument, int limitRows) {
   listName.trim();
   if (!dbUtils->validateListName(listName.c_str())) {
@@ -39,19 +65,14 @@ int DBReadProcessor::queryJson(String listName, DynamicJsonDocument* filterDoc, 
   File dataFile;
   String fileName = "/__quarkdb__/" +listName + +".jsonl";
   if (!SPIFFS.exists(fileName)) {
-    // Serial.println("ERROR:List does not exist ->" + listName);
     return false;
   }
-
-  if (this->fileMode == 2) {
-    dataFile = SPIFFS.open(fileName, "r");
-  }
+  dataFile = SPIFFS.open(fileName, "r");
   String finalString = "[";
   byte rowCount = 0;
   if (dataFile) {
     while (dataFile.available()) {
       String jsonString = dataFile.readStringUntil('\n');
-      //Serial.println(" read line is " + jsonString);
       DynamicJsonDocument jsonLineDocument(this->maxRecordSize);
       DeserializationError error = deserializeJson(jsonLineDocument, jsonString);
       if(error || jsonString == "") {
@@ -62,7 +83,6 @@ int DBReadProcessor::queryJson(String listName, DynamicJsonDocument* filterDoc, 
       if (mismatch) {
         continue;
       } else if(++rowCount <= limitRows) {
-        //Serial.println(" success line is " + jsonString);
         if (finalString == "[") {
           finalString = finalString + jsonString;
         } else {
@@ -75,7 +95,6 @@ int DBReadProcessor::queryJson(String listName, DynamicJsonDocument* filterDoc, 
     Serial.println("Error opening database.json");
   }
   finalString = finalString + "]";
-  //Serial.println("out lst is" + finalString);
   DeserializationError err = deserializeJson(*resultDocument, finalString);
   if (err) {
     Serial.println("Not enough size or incorrect json document");
@@ -85,6 +104,7 @@ int DBReadProcessor::queryJson(String listName, DynamicJsonDocument* filterDoc, 
   return rowCount;
 }
 
+//Query count
 int DBReadProcessor::queryJsonCount(String listName) {
   listName.trim();
   if (!dbUtils->validateListName(listName.c_str())) {
@@ -93,12 +113,9 @@ int DBReadProcessor::queryJsonCount(String listName) {
   File dataFile;
   String fileName = "/__quarkdb__/" +listName + +".jsonl";
   if (!SPIFFS.exists(fileName)) {
-    // Serial.println("ERROR:List does not exist ->" + listName);
     return -1;
   }
-  if (this->fileMode == 2) {
-    dataFile = SPIFFS.open(fileName, "r");
-  }
+  dataFile = SPIFFS.open(fileName, "r");
   byte rowCount = 0;
   if (dataFile) {
     while (dataFile.available()) {
@@ -114,6 +131,40 @@ int DBReadProcessor::queryJsonCount(String listName) {
   }
 
   return rowCount;
+}
+
+String DBReadProcessor::getListNames() {
+  String lists = "Lists found are..";
+  #if defined (ESP8266)
+  Dir dir = SPIFFS.openDir("/");
+     while (dir.next()) {
+       if (dir.fileName().startsWith("/__quarkdb__")) {
+         lists = lists + "\n" + dir.fileName().substring(dir.fileName().lastIndexOf("/") + 1, dir.fileName().lastIndexOf("."));
+       }
+     }
+     if(lists == "Lists found are..") {
+       return " No Lists Found";
+     }
+     return lists;
+  #elif defined(ESP32)
+    File root = SPIFFS.open("/");
+    if(!root.isDirectory()){
+        Serial.println(" - not a directory");
+        return "ERROR : File error";
+    }
+    File file = root.openNextFile();
+    String fileName = String(file.path());
+    while(file){
+     if(fileName.startsWith("/__quarkdb__")) {
+        lists = lists + "\n" + fileName.substring(fileName.lastIndexOf("/") + 1, fileName.lastIndexOf("."));
+     }
+     file = root.openNextFile();
+    }
+    if(lists == "Lists found are..") {
+      return " No Lists Found";
+    }
+    return lists;
+  #endif
 }
 
 
