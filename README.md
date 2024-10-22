@@ -1,15 +1,17 @@
 
-# QuarkDB
 
-An [Arduino](https://arduino.cc/) library for reading and writing data using No-SQL Json using ArduinoJson.
-One can use API as well Command Line interface using Serial Monitor
+# QuarkDB
+### Use API or CLI like any DB
+An [Arduino](https://arduino.cc/) library for managing data just like any other No-SQL DB.   
+Data managed using ArduinoJson and SPIFFS file system for ESP boards.  
 API and usage details can be found [here](/API.md)
+
 
 ## Compatible Hardware
 
 * ESP8266 based boards
-* ESP32 based boards
-  *NOTE:* Other boards will be supported soon.  .
+* ESP32 based boards  
+  *NOTE:* Other boards will be supported soon.
 
 ## Installation
 
@@ -21,12 +23,11 @@ API and usage details can be found [here](/API.md)
 4. Click the `Install` button to install the library.
 
 ### Using Git
-
-```  
-cd ~/Documents/Arduino/libraries/
-git clone https://github.com/quarkifii/quark-db-aurdino quarkDB
-```  
-## API
+``` 
+cd ~/Documents/Arduino/libraries/  
+git clone https://github.com/quarkifii/quark-db-aurdino QuarkDB  
+``` 
+## API and CLI
 
 See [API and CLI commands](/API.md).
 
