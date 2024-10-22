@@ -1,6 +1,7 @@
 
 
-# QuarkDB API
+
+# QuarkDB API and Command Line Details
 
 ## Include Library
 
@@ -8,7 +9,7 @@
 #include  <QuarkDB.h> 
 ```   
 ## Setup
-
+Make sure Arduino IDE is setup with ESP8266/ESP32 development configurations
 ### Begin
 
 Initialize the library with the specified file type (QUARKDB_SPIFFS_FILE_TYPE is supported now) .
@@ -32,7 +33,8 @@ Add the below line in loop() function.
 
 ```arduino 
 void  loop()  {  
- quarkDB.processSerialCommand();}  
+ quarkDB.processSerialCommand();
+}  
 ```
 * This will process serial commands sent using serial monitor
 
@@ -53,7 +55,9 @@ if(cStatus)  {
 ```
 #### Using Command Line using Serial Monitor
 ```  
-QUARKDB>db.create("testMyList")  
+cmd# QUARKDB>db.create("testMyList")
+out# Successfully created ->testMyList  
+
 ``` 
 ### Add Element to a DB List
 #### Using API
@@ -62,14 +66,17 @@ DynamicJsonDocument doc(MAX_RECORD_SIZE);
 doc["age"] = 23;  
 doc["name"] = "John";  
 bool statusA = quarkDB.addRecord("testMyList", doc.as<JsonObject>());  
-if(statusA)  {  
- Serial.printf("Successfully added \n");}else  {  
- Serial.printf("ERROR:Failed To add \n ");
+if(statusA) {  
+  Serial.printf("Successfully added \n");
+ }else {  
+  Serial.printf("ERROR:Failed To add \n ");
 }  
 ``` 
 #### Using Command Line using Serial Monitor
 ```  
-QUARKDB>db.testMyList.add({"age" : 23 , "name" : "John"})  
+cmd# QUARKDB>db.testMyList.add({"age" : 23 , "name" : "John"}) 
+out# writing record {"age":23,"name":"John"}
+Successfully added to ->testMyList 
 ``` 
 ### Get Total Record Count of a DB List
 #### Using API
@@ -78,7 +85,8 @@ int totalCount = quarkDB.getRecordCount("testMyList");
 ``` 
 #### Using Command Line using Serial Monitor
 ```  
-QUARKDB>db.testMyList.count()  
+cmd# QUARKDB>db.testMyList.count()  
+out# Total Count -> 1 [max records set : 300, max single record size set : 500 ]
 ```  
 ### Comparison Operators Supported for Data Retrieval
 ```
@@ -100,7 +108,20 @@ serializeJson(results, Serial);
 ``` 
 #### Using Command Line using Serial Monitor
 ```  
-QUARKDB>db.testMyList.find({})  
+cmd# QUARKDB>db.testMyList.find({})  
+out# [
+
+  {
+
+    "age": 23,
+
+    "name": "John"
+
+  }
+
+]
+
+1/1 Records Retrieved [max records set : 300 bytes, max single record size set : 500bytes ]
 ```  
 ### Get Records from a DB List with basic equality filter
 #### Using API
@@ -113,7 +134,20 @@ serializeJson(results, Serial);
 ``` 
 #### Using Command Line using Serial Monitor
 ```  
-QUARKDB>db.testMyList.find({"age" : 23})  
+cmd# QUARKDB>db.testMyList.find({"age" : 23})  
+out# [
+
+  {
+
+    "age": 23,
+
+    "name": "John"
+
+  }
+
+]
+
+1/1 Records Retrieved [max records set : 300 bytes, max single record size set : 500bytes ]
 ```  
 ### Get Records from a DB List with basic greater than filter
 #### Using API
@@ -126,7 +160,20 @@ serializeJson(results, Serial);
 ``` 
 #### Using Command Line using Serial Monitor
 ```  
-QUARKDB>db.testMyList.find({"age" : {"$gt" : 22 }})  
+cmd# QUARKDB>db.testMyList.find({"age" : {"$gt" : 22 }})  
+out# [
+
+  {
+
+    "age": 23,
+
+    "name": "John"
+
+  }
+
+]
+
+1/1 Records Retrieved [max records set : 300 bytes, max single record size set : 500bytes ]
 ```  
 ### Get Records from a DB List with basic greater than or equal filter
 #### Using API
@@ -139,7 +186,20 @@ serializeJson(results, Serial);
 ``` 
 #### Using Command Line using Serial Monitor
 ```  
-QUARKDB>db.testMyList.find({"age" : {"$gte" : 22 }})  
+cmd# QUARKDB>db.testMyList.find({"age" : {"$gte" : 22 }})  
+out# [
+
+  {
+
+    "age": 23,
+
+    "name": "John"
+
+  }
+
+]
+
+1/1 Records Retrieved [max records set : 300 bytes, max single record size set : 500bytes ]
 ```  
 ### Get Records from a DB List with basic less than filter
 #### Using API
@@ -152,7 +212,20 @@ serializeJson(results, Serial);
 ``` 
 #### Using Command Line using Serial Monitor
 ```  
-QUARKDB>db.testMyList.find({"age" : {"$lt" : 25 }})  
+cmd# QUARKDB>db.testMyList.find({"age" : {"$lt" : 25 }})  
+out# [
+
+  {
+
+    "age": 23,
+
+    "name": "John"
+
+  }
+
+]
+
+1/1 Records Retrieved [max records set : 300 bytes, max single record size set : 500bytes ]
 ```  
 ### Get Records from a DB List with basic less than or equal filter
 #### Using API
@@ -165,7 +238,20 @@ serializeJson(results, Serial);
 ``` 
 #### Command Line using Serial Monitor
 ```  
-QUARKDB>db.testMyList.find({"age" : {"$lte" : 25 }})  
+cmd# QUARKDB>db.testMyList.find({"age" : {"$lte" : 25 }})  
+ou# [
+
+  {
+
+    "age": 23,
+
+    "name": "John"
+
+  }
+
+]
+
+1/1 Records Retrieved [max records set : 300 bytes, max single record size set : 500bytes ]
 ```  
 ### Get Records from a DB List with matching element within an array
 Suppose elements are as follows  
@@ -184,7 +270,30 @@ serializeJson(results, Serial);
 ``` 
 #### Command Line using Serial Monitor
 ```  
-QUARKDB>db.testMyList.find({"innerArray" : { "$eleMatch" : {"$eq" : 2 }}})  
+cmd# QUARKDB>db.testMyList.find({"innerArray" : { "$eleMatch" : {"$eq" : 2 }}})  
+out# [
+
+  {
+
+    "innerArray": [
+
+      1,
+
+      2,
+
+      3,
+
+      4
+
+    ],
+
+    "id": "test1"
+
+  }
+
+]
+
+1/1 Records Retrieved [max records set : 300 bytes, max single record size set : 500bytes ]
 ```  
 ### Update Record
 #### Using API
@@ -198,17 +307,21 @@ int updateCount = quarkDB.updateRecords("testMyList", "{\"age\" : 23 }" , update
 ``` 
 #### Command Line using Serial Monitor
 ```  
-QUARKDB>db.testMyList.update({ "filter" : {"age" : 23} , "updateObj" : {"age" : 43 , "name" : "Alter"} })  
+cmd# QUARKDB>db.testMyList.update({ "filter" : {"age" : 23} , "updateObj" : {"age" : 43 , "name" : "Alter"} })
+out#  updating object1
+
+Results Updated Count [1]  
 ```  
 ### Delete Record
 #### Using API
 Pass the filter to match records and delete
 ```arduino 
-int deleteCount = quarkDB.deleteRecords("testMyList", "{\"age\" : 33 }"  );  
+int deleteCount = quarkDB.deleteRecords("testMyList", "{\"age\" : 43 }"  );  
 ``` 
 #### Command Line using Serial Monitor
 ```  
-QUARKDB>db.testMyList.delete({"age" : 33})  
+cmd# QUARKDB>db.testMyList.delete({"age" : 43})  
+out# Results Deleted Count [1]
 ```  
 ### Delete List
 #### Using API
@@ -223,7 +336,8 @@ if(dStatus)  {
 ``` 
 #### Command Line using Serial Monitor
 ```  
-QUARKDB>db.delete("testMyList")  
+cmd# QUARKDB>db.delete("testMyList")  
+out# Successfully deleted ->testMyList
 ```  
 ### Update Max Size for each Record
 #### Using API
@@ -244,3 +358,4 @@ quarkDB.setMaxRecords(600);
 ```  
 QUARKDB>set max_records=600  
 ```
+For any issue please reach out to support@quarkifi.com or raise an issue
