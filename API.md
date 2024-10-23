@@ -53,7 +53,7 @@ if(cStatus)  {
  Serial.println("Failed To add");  
 } 
 ```
-#### Using Command Line using Serial Monitor
+#### Command Line using Serial Monitor
 ```  
 cmd# QUARKDB>db.create("testMyList")
 out# Successfully created ->testMyList  
@@ -72,7 +72,7 @@ if(statusA) {
   Serial.printf("ERROR:Failed To add \n ");
 }  
 ``` 
-#### Using Command Line using Serial Monitor
+#### Command Line using Serial Monitor
 ```  
 cmd# QUARKDB>db.testMyList.add({"age" : 23 , "name" : "John"}) 
 out# writing record {"age":23,"name":"John"}
@@ -83,7 +83,7 @@ Successfully added to ->testMyList
 ```arduino 
 int totalCount = quarkDB.getRecordCount("testMyList");  
 ``` 
-#### Using Command Line using Serial Monitor
+#### Command Line using Serial Monitor
 ```  
 cmd# QUARKDB>db.testMyList.count()  
 out# Total Count -> 1 [max records set : 300, max single record size set : 500 ]
@@ -106,7 +106,7 @@ DynamicJsonDocument results(totalCount*MAX_RECORD_SIZE);
 int count = quarkDB.getRecords("testMyList" , "{}" , &results);  
 serializeJson(results, Serial);  
 ``` 
-#### Using Command Line using Serial Monitor
+#### Command Line using Serial Monitor
 ```  
 cmd# QUARKDB>db.testMyList.find({})  
 out# [
@@ -132,7 +132,7 @@ DynamicJsonDocument results(totalCount*MAX_RECORD_SIZE);
 int count = quarkDB.getRecords("testMyList" , "{\"age\" : 23 }" , &results);  
 serializeJson(results, Serial);  
 ``` 
-#### Using Command Line using Serial Monitor
+#### Command Line using Serial Monitor
 ```  
 cmd# QUARKDB>db.testMyList.find({"age" : 23})  
 out# [
@@ -158,7 +158,7 @@ DynamicJsonDocument results(totalCount*MAX_RECORD_SIZE);
 int count = quarkDB.getRecords("testMyList" , "{\"age\" : { \"$gt\" : 22 } }" , &results);  
 serializeJson(results, Serial);  
 ``` 
-#### Using Command Line using Serial Monitor
+#### Command Line using Serial Monitor
 ```  
 cmd# QUARKDB>db.testMyList.find({"age" : {"$gt" : 22 }})  
 out# [
@@ -184,7 +184,7 @@ DynamicJsonDocument results(totalCount*MAX_RECORD_SIZE);
 int count = quarkDB.getRecords("testMyList" , "{\"age\" : { \"$gte\" : 22 } }" , &results);  
 serializeJson(results, Serial);  
 ``` 
-#### Using Command Line using Serial Monitor
+#### Command Line using Serial Monitor
 ```  
 cmd# QUARKDB>db.testMyList.find({"age" : {"$gte" : 22 }})  
 out# [
@@ -210,7 +210,7 @@ DynamicJsonDocument results(totalCount*MAX_RECORD_SIZE);
 int count = quarkDB.getRecords("testMyList" , "{\"age\" : { \"$lt\" : 25 } }" , &results);  
 serializeJson(results, Serial);  
 ``` 
-#### Using Command Line using Serial Monitor
+#### Command Line using Serial Monitor
 ```  
 cmd# QUARKDB>db.testMyList.find({"age" : {"$lt" : 25 }})  
 out# [

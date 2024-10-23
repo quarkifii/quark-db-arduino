@@ -27,7 +27,7 @@ API and usage details can be found [here](/API.md)
 ### Using Git
 ``` 
 cd ~/Documents/Arduino/libraries/ 
-git clone https://github.com/quarkifii/quark-db-aurdino QuarkDB 
+git clone https://github.com/quarkifii/quark-db-arduino QuarkDB 
 ``` 
 ## API and CLI
 
