@@ -45,6 +45,7 @@ Above defaults can be modified by relevant APIs as defined below
 
 ### Create a DB List
 #### Using API
+List name must be below 12 characters
 ```arduino
 bool cStatus = quarkDB.createList("testMyList");  
 if(cStatus)  {  
