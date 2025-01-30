@@ -11,7 +11,13 @@ int MAX_RECORD_SIZE = 110;
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
-  bool status = quarkDB.init(QUARKDB_SPIFFS_FILE_TYPE);
+  bool status = false;
+  short timeout = 0;
+  //Wait for max 30 secs init
+  while(!status && (++timeout) < 3000) {
+    status = quarkDB.init(QUARKDB_SPIFFS_FILE_TYPE);
+    delay(10);
+  }
   if(status) {
     Serial.println("QuarkDB initialized");
   }
@@ -40,7 +46,7 @@ void loop() {
 
   // Adding records to the list
   for(int i=0 ; i < 5; i++) {
-      DynamicJsonDocument doc(MAX_RECORD_SIZE);
+      JsonDocument doc;
       doc["name"] = nameArray[i];
       doc["age"] = ageArray[i];
       doc["temp"] = tempArray[i];
@@ -58,7 +64,7 @@ void loop() {
   }else {
     Serial.println("ERROR: Record Count not retrieved successfully");
   }
-  DynamicJsonDocument results(totalCount*MAX_RECORD_SIZE);
+  JsonDocument results;
   //Get All records with empty filter
   int count = quarkDB.getRecords("testList" , "{}" , &results);
   Serial.printf("%d Records retrieved successfully\n",count);
@@ -104,7 +110,7 @@ void loop() {
     Serial.println("ERROR: Data not retrieved correctly");
   }
   //Updating  data
-  DynamicJsonDocument updateDoc(MAX_RECORD_SIZE);
+  JsonDocument updateDoc;
   updateDoc["name"] = "test-0";
   updateDoc["age"] = 33;
   updateDoc["temp"] = 27.8;
@@ -117,7 +123,7 @@ void loop() {
     Serial.println("ERROR: Record not updated successfully");
   }
   //Retrieve and check after update
-  DynamicJsonDocument resultUpdate(totalCount*MAX_RECORD_SIZE);
+  JsonDocument resultUpdate;
   //Get All records with filter specifying the update filter
   int countUpd = quarkDB.getRecords("testList" , "{\"age\" : 33 }" , &resultUpdate);
   if(countUpd == 1) {
@@ -154,13 +160,13 @@ void loop() {
    }
   Serial.println("");
   // Checking deleting row now.. pass the ist name and the matching selector to delete all matched records
-  int deleteCount = quarkDB.deleteRecords("testList", "{\"age\" : 33 }" );
+  quarkDB.deleteRecords("testList", "{\"age\" : 33 }" );
   if(updateCount == 1) {
     Serial.println("Record deleted successfully");
   }else {
     Serial.println("ERROR: Record not deleted successfully");
   }
-  DynamicJsonDocument resultDelete(totalCount*MAX_RECORD_SIZE);
+  JsonDocument resultDelete;
   //Get All records with filter used to delete records. should return empty now
   int countDel = quarkDB.getRecords("testList" , "{\"age\" : 33 }" , &resultDelete);
   if(countDel == 0 && resultDelete.as<JsonArray>().size() == 0) {

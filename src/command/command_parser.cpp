@@ -102,8 +102,6 @@ String CommandParser::processCommand(String cmd) {
   }
   char* token = strtok((char*)mainCommand.c_str(), ".");
   short tokenCount = 0;
-  bool isCreate = false;
-  bool isDelete = false;
   String listName = "";
   while (token != NULL) {
     String tokStr = String(token);
@@ -210,7 +208,7 @@ String CommandParser::preProcessListCommand(String listName, String commandList)
 
 // Process list get from the db
 String CommandParser::processGet(String listName, String filter) {
-  DynamicJsonDocument doc(__QUARKDB_FILTER_SIZE__);
+  JsonDocument doc;
   DeserializationError error = deserializeJson(doc, filter);
   if (error) {
     return "ERROR: Invalid filter->" + filter;
@@ -219,13 +217,8 @@ String CommandParser::processGet(String listName, String filter) {
   if (count == -1) {
     return "ERROR: Error reading list->" + listName;
   }
-  int allowedCount = 0;
-  if(count <= maxRecords) {
-    allowedCount = count;
-  }else {
-    allowedCount = maxRecords;
-  }
-  DynamicJsonDocument resultDocument(allowedCount * maxRecordSize);
+
+  JsonDocument resultDocument;
   int total = readProcessor->getRecords(listName, filter, &resultDocument, maxRecords);
   if (total == -1) {
     return "ERROR: Could not read list";
@@ -248,7 +241,7 @@ String CommandParser::processGetCount(String listName) {
 }
 // Process list delete from the db
 String CommandParser::processDelete(String listName, String filter) {
-  DynamicJsonDocument doc(__QUARKDB_FILTER_SIZE__);
+  JsonDocument doc;
   DeserializationError error = deserializeJson(doc, filter);
   if (error) {
     return "ERROR: Invalid filter->" + filter;
@@ -262,7 +255,7 @@ String CommandParser::processDelete(String listName, String filter) {
 }
 // Process list update in the db
 String CommandParser::processSet(String listName, String updateCommand) {
-  DynamicJsonDocument doc(__QUARKDB_UPDATE_CMD_SIZE__);
+  JsonDocument doc;
   DeserializationError error = deserializeJson(doc, updateCommand);
   if (error) {
     return "ERROR: Invalid updateCommand. Please pass valid JSON string->" + updateCommand;
@@ -283,7 +276,7 @@ String CommandParser::processSet(String listName, String updateCommand) {
 }
 // Process list add element to the db
 String CommandParser::processAdd(String listName, String json) {
-  DynamicJsonDocument doc(maxRecordSize);
+  JsonDocument doc;
   DeserializationError error = deserializeJson(doc, json);
   if (error) {
     return "ERROR: Invalid json->" + json;

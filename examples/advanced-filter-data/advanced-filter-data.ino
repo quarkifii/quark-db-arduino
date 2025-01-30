@@ -7,7 +7,13 @@ int MAX_RECORD_SIZE = 300;
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
-  bool status = quarkDB.init(QUARKDB_SPIFFS_FILE_TYPE);
+  bool status = false;
+  short timeout = 0;
+  //Wait for max 30 secs init
+  while(!status && (++timeout) < 3000) {
+    status = quarkDB.init(QUARKDB_SPIFFS_FILE_TYPE);
+    delay(10);
+  }
   if(status) {
     Serial.println("QuarkDB initialized");
   }
@@ -37,11 +43,11 @@ void loop() {
 
   // Adding records to the list with inner array object
   for(int i=0 ; i < 5; i++) {
-      DynamicJsonDocument doc(MAX_RECORD_SIZE);
+      JsonDocument doc;
       doc["name"] = nameArray[i];
       doc["humidity"] = humidityArray[i];
       if(i%2 == 0) {
-        JsonArray innerObjArray = doc.createNestedArray("innerArray");
+        JsonArray innerObjArray = doc["innerArray"].to<JsonArray>();
         for(int j =0; j < 5; j++) {
           innerObjArray.add(innerArray[j] + i);
         }
@@ -59,7 +65,7 @@ void loop() {
   }else {
     Serial.println("ERROR: Record Count not retrieved successfully");
   }
-  DynamicJsonDocument results(totalCount*MAX_RECORD_SIZE);
+  JsonDocument results;
   //Get All records with empty filter
   int count = quarkDB.getRecords("testList" , "{}" , &results);
   Serial.printf("%d Records retrieved successfully\n",count);
@@ -100,7 +106,7 @@ void loop() {
     Serial.println("ERROR: Data not retireived correctly");
   }
 
-  DynamicJsonDocument resultSingle(MAX_RECORD_SIZE);
+  JsonDocument resultSingle;
   //Get a records with filter for specific array value to select the entire record using $eleMatch operand
   int countS = quarkDB.getRecords("testList" , "{\"innerArray\" : { \"$eleMatch\" : { \"$eq\" : 53.4 } } }" , &resultSingle);
   Serial.printf("%d Records retrieved successfully\n",countS);

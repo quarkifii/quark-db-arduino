@@ -45,8 +45,8 @@ int DBReadProcessor::getRecordCount(String listName) {
 }
 
 //Get records in json Array
-int DBReadProcessor::getRecords(String listName, String filter, DynamicJsonDocument* resultDoc, int limitRows) {
-  DynamicJsonDocument filterDoc(__QUARKDB_FILTER_SIZE__);
+int DBReadProcessor::getRecords(String listName, String filter, JsonDocument* resultDoc, int limitRows) {
+  JsonDocument filterDoc;
   DeserializationError error = deserializeJson(filterDoc, filter);
   if (error) {
     Serial.println("ERROR: Invalid filter->" + filter);
@@ -57,7 +57,7 @@ int DBReadProcessor::getRecords(String listName, String filter, DynamicJsonDocum
 
 
 //Get records in json Array
-int DBReadProcessor::queryJson(String listName, DynamicJsonDocument* filterDoc, DynamicJsonDocument* resultDocument, int limitRows) {
+int DBReadProcessor::queryJson(String listName, JsonDocument* filterDoc, JsonDocument* resultDocument, int limitRows) {
   listName.trim();
   if (!dbUtils->validateListName(listName.c_str())) {
     return false;
@@ -73,7 +73,7 @@ int DBReadProcessor::queryJson(String listName, DynamicJsonDocument* filterDoc, 
   if (dataFile) {
     while (dataFile.available()) {
       String jsonString = dataFile.readStringUntil('\n');
-      DynamicJsonDocument jsonLineDocument(this->maxRecordSize);
+      JsonDocument jsonLineDocument;
       DeserializationError error = deserializeJson(jsonLineDocument, jsonString);
       if(error || jsonString == "") {
         continue;

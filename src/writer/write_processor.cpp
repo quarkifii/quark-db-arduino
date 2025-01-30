@@ -78,7 +78,7 @@ bool DBWriteProcessor::deleteList(String listName) {
 
 // Update records in the list
 int DBWriteProcessor::updateRecords(String listName , String selector,JsonObject* jsonObject) {
-  DynamicJsonDocument filterDoc(__QUARKDB_JSON_STRING_SIZE__);
+  JsonDocument filterDoc;
   DeserializationError error = deserializeJson(filterDoc, selector);
   if (error) {
     Serial.println("ERROR: Invalid selector or size more than 500 bytes->" + selector);
@@ -90,7 +90,7 @@ int DBWriteProcessor::updateRecords(String listName , String selector,JsonObject
 }
 
 // Update records in the list
-int DBWriteProcessor::updateFromJson(String listName, DynamicJsonDocument* filterDoc, String updateObjectJson) {
+int DBWriteProcessor::updateFromJson(String listName, JsonDocument* filterDoc, String updateObjectJson) {
   listName.trim();
   if (!dbUtils->validateListName(listName.c_str())) {
     return -1;
@@ -106,7 +106,7 @@ int DBWriteProcessor::updateFromJson(String listName, DynamicJsonDocument* filte
   if (dataFile) {
     while (dataFile.available()) {
       String jsonString = dataFile.readStringUntil('\n');
-      DynamicJsonDocument jsonLineDocument(this->maxRecordSize);
+      JsonDocument jsonLineDocument;
       DeserializationError error = deserializeJson(jsonLineDocument, jsonString);
       if(error || jsonString == "") {
         continue;
@@ -147,7 +147,7 @@ int DBWriteProcessor::updateFromJson(String listName, DynamicJsonDocument* filte
 
 // Delete records in the list
 int DBWriteProcessor::deleteRecords(String listName, String selector) {
- DynamicJsonDocument filterDoc(maxRecordSize);
+ JsonDocument filterDoc;
   DeserializationError error = deserializeJson(filterDoc, selector);
   if (error) {
     Serial.println("ERROR: Invalid filter->" + selector);
@@ -156,7 +156,7 @@ int DBWriteProcessor::deleteRecords(String listName, String selector) {
   return this->deleteFromJson(listName, &filterDoc);
 }
 // Delete records in the list
-int DBWriteProcessor::deleteFromJson(String listName, DynamicJsonDocument* filterDoc) {
+int DBWriteProcessor::deleteFromJson(String listName, JsonDocument* filterDoc) {
   listName.trim();
   if (!dbUtils->validateListName(listName.c_str())) {
     return false;
@@ -172,7 +172,7 @@ int DBWriteProcessor::deleteFromJson(String listName, DynamicJsonDocument* filte
   if (dataFile) {
     while (dataFile.available()) {
       String jsonString = dataFile.readStringUntil('\n');
-      DynamicJsonDocument jsonLineDocument(this->maxRecordSize);
+      JsonDocument jsonLineDocument;
       DeserializationError error = deserializeJson(jsonLineDocument, jsonString);
       if(error || jsonString == "") {
         continue;
