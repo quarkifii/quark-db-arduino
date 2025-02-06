@@ -153,13 +153,16 @@ String DBReadProcessor::getListNames() {
         return "ERROR : File error";
     }
     File file = root.openNextFile();
-    String fileName = String(file.path());
+    String fileName;
     while(file){
+     fileName = String(file.path());
      if(fileName.startsWith("/__quarkdb__")) {
         lists = lists + "\n" + fileName.substring(fileName.lastIndexOf("/") + 1, fileName.lastIndexOf("."));
      }
+     file.close();
      file = root.openNextFile();
     }
+    root.close();
     if(lists == "Lists found are..") {
       return " No Lists Found";
     }
