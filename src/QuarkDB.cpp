@@ -122,3 +122,20 @@ void QuarkDB::processSerialCommand() {
   }
 }
 
+// Removes all records from the list but keeps the list
+// TBD: not implemented yet, always returns false
+bool QuarkDB::removeRecords(String listName) {
+  return false;
+}
+
+// Removes all lists from the DB
+// TBD: not implemented yet, always returns false
+bool QuarkDB::removeAllLists() {
+  return false;
+}
+
+// Returns DB statistics
+// TBD: not implemented yet, always returns nullptr
+JsonDocument * QuarkDB::getDBStat() {
+  return nullptr;
+}

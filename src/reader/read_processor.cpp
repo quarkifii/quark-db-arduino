@@ -60,40 +60,41 @@ int DBReadProcessor::getRecords(String listName, String filter, JsonDocument* re
 int DBReadProcessor::queryJson(String listName, JsonDocument* filterDoc, JsonDocument* resultDocument, int limitRows) {
   listName.trim();
   if (!dbUtils->validateListName(listName.c_str())) {
-    return false;
+    return -1;
   }
-  File dataFile;
-  String fileName = "/__quarkdb__/" +listName + +".jsonl";
+  dbUtils->recoverList(listName);
+  String fileName = dbUtils->getListFileName(listName);
   if (!SPIFFS.exists(fileName)) {
-    return false;
+    return -1;
   }
-  dataFile = SPIFFS.open(fileName, "r");
+  File dataFile = SPIFFS.open(fileName, "r");
+  if (!dataFile) {
+    Serial.println("Error opening file for reading");
+    return -1;
+  }
+  JsonObject root = filterDoc->as<JsonObject>();
   String finalString = "[";
-  byte rowCount = 0;
-  if (dataFile) {
-    while (dataFile.available()) {
-      String jsonString = dataFile.readStringUntil('\n');
-      JsonDocument jsonLineDocument;
-      DeserializationError error = deserializeJson(jsonLineDocument, jsonString);
-      if(error || jsonString == "") {
-        continue;
-      }
-      JsonObject root = filterDoc->as<JsonObject>();
-      bool mismatch = dbFilter->filterParse(root, jsonLineDocument, false);
-      if (mismatch) {
-        continue;
-      } else if(++rowCount <= limitRows) {
-        if (finalString == "[") {
-          finalString = finalString + jsonString;
-        } else {
-          finalString = finalString + "\n," + jsonString;
-        }
+  int rowCount = 0;
+  while (dataFile.available()) {
+    String jsonString = dataFile.readStringUntil('\n');
+    jsonString.trim();
+    JsonDocument jsonLineDocument;
+    DeserializationError error = deserializeJson(jsonLineDocument, jsonString);
+    if(error || jsonString == "") {
+      continue;
+    }
+    bool mismatch = dbFilter->filterParse(root, jsonLineDocument, false);
+    if (mismatch) {
+      continue;
+    } else if(++rowCount <= limitRows) {
+      if (finalString == "[") {
+        finalString = finalString + jsonString;
+      } else {
+        finalString = finalString + "\n," + jsonString;
       }
     }
-    dataFile.close();
-  } else {
-    Serial.println("Error opening database.json");
   }
+  dataFile.close();
   finalString = finalString + "]";
   DeserializationError err = deserializeJson(*resultDocument, finalString);
   if (err) {
@@ -110,27 +111,50 @@ int DBReadProcessor::queryJsonCount(String listName) {
   if (!dbUtils->validateListName(listName.c_str())) {
     return -1;
   }
-  File dataFile;
-  String fileName = "/__quarkdb__/" +listName + +".jsonl";
+  dbUtils->recoverList(listName);
+  String fileName = dbUtils->getListFileName(listName);
   if (!SPIFFS.exists(fileName)) {
     return -1;
   }
-  dataFile = SPIFFS.open(fileName, "r");
-  byte rowCount = 0;
-  if (dataFile) {
-    while (dataFile.available()) {
-      String jsonString = dataFile.readStringUntil('\n');
-      if(jsonString == "") {
-        continue;
-      }
-      rowCount++;
-    }
-    dataFile.close();
-  } else {
-    Serial.println("Error opening database.json");
+  File dataFile = SPIFFS.open(fileName, "r");
+  if (!dataFile) {
+    Serial.println("Error opening file for reading");
+    return -1;
   }
+  int rowCount = 0;
+  while (dataFile.available()) {
+    String jsonString = dataFile.readStringUntil('\n');
+    jsonString.trim();
+    if(jsonString == "") {
+      continue;
+    }
+    // Count only complete records so the count matches getRecords()
+    JsonDocument jsonLineDocument;
+    if (deserializeJson(jsonLineDocument, jsonString)) {
+      continue;
+    }
+    rowCount++;
+  }
+  dataFile.close();
 
   return rowCount;
+}
+
+// List name for a file in the DB folder, or "" if the file is not a list.
+// A temp file without its list file is a list whose rewrite was interrupted
+// mid-swap; it is still listed and gets recovered on its next access.
+String DBReadProcessor::listNameFromPath(String path) {
+  if (!path.startsWith("/__quarkdb__/")) {
+    return "";
+  }
+  String name = path.substring(path.lastIndexOf("/") + 1, path.lastIndexOf("."));
+  if (path.endsWith(".jsonl")) {
+    return name;
+  }
+  if (path.endsWith(".tmp") && !SPIFFS.exists(dbUtils->getListFileName(name))) {
+    return name;
+  }
+  return "";
 }
 
 String DBReadProcessor::getListNames() {
@@ -138,8 +162,9 @@ String DBReadProcessor::getListNames() {
   #if defined (ESP8266)
   Dir dir = SPIFFS.openDir("/");
      while (dir.next()) {
-       if (dir.fileName().startsWith("/__quarkdb__")) {
-         lists = lists + "\n" + dir.fileName().substring(dir.fileName().lastIndexOf("/") + 1, dir.fileName().lastIndexOf("."));
+       String listName = listNameFromPath(dir.fileName());
+       if (listName != "") {
+         lists = lists + "\n" + listName;
        }
      }
      if(lists == "Lists found are..") {
@@ -156,8 +181,9 @@ String DBReadProcessor::getListNames() {
     String fileName;
     while(file){
      fileName = String(file.path());
-     if(fileName.startsWith("/__quarkdb__")) {
-        lists = lists + "\n" + fileName.substring(fileName.lastIndexOf("/") + 1, fileName.lastIndexOf("."));
+     String listName = listNameFromPath(fileName);
+     if(listName != "") {
+        lists = lists + "\n" + listName;
      }
      file.close();
      file = root.openNextFile();
@@ -172,3 +198,16 @@ String DBReadProcessor::getListNames() {
 
 
 
+
+
+// Sets the max records the list can hold
+// TBD: value is stored but not enforced by read operations yet
+void DBReadProcessor::setMaxRecords(int maxRecords) {
+  this->maxRecords = maxRecords;
+}
+
+// Sets the max size of a single record
+// TBD: value is stored but not enforced by read operations yet
+void DBReadProcessor::setMaxRecordSize(int maxRecordSize) {
+  this->maxRecordSize = maxRecordSize;
+}

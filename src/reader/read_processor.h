@@ -40,6 +40,7 @@ class DBReadProcessor {
     int queryJson(String listName, JsonDocument* filterDoc, JsonDocument* resultDocument, int limitRows);
     bool innerObjectParse(JsonPair kvx,JsonVariant jsonCheckObject);
     int queryJsonCount(String listName);
+    String listNameFromPath(String path);
   public:
     DBReadProcessor(byte fileMode);
     int getRecordCount(String listName);

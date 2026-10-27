@@ -46,8 +46,9 @@ bool DBWriteProcessor::createList(String listName) {
   if(!dbUtils->validateListName(listName.c_str())) {
     return false;
   }
+  dbUtils->recoverList(listName);
   File file;
-  String fileName = "/__quarkdb__/" +listName +".jsonl";
+  String fileName = dbUtils->getListFileName(listName);
   if(SPIFFS.exists(fileName)) {
     Serial.println("ERROR:List already exists ->" + listName );
     return false;
@@ -67,13 +68,18 @@ bool DBWriteProcessor::deleteList(String listName) {
   if(!dbUtils->validateListName(listName.c_str())) {
     return false;
   }
-  String fileName = "/__quarkdb__/" +listName + +".jsonl";
+  dbUtils->recoverList(listName);
+  String fileName = dbUtils->getListFileName(listName);
   if(!SPIFFS.exists(fileName)) {
     Serial.println("ERROR:List does not exist ->" + listName );
     return false;
   }
-  SPIFFS.remove(fileName);
-  return true;
+  // Remove any temp file first so it can never be recovered as the list
+  String tempFileName = dbUtils->getTempFileName(listName);
+  if(SPIFFS.exists(tempFileName)) {
+    SPIFFS.remove(tempFileName);
+  }
+  return SPIFFS.remove(fileName);
 }
 
 // Update records in the list
@@ -91,58 +97,7 @@ int DBWriteProcessor::updateRecords(String listName , String selector,JsonObject
 
 // Update records in the list
 int DBWriteProcessor::updateFromJson(String listName, JsonDocument* filterDoc, String updateObjectJson) {
-  listName.trim();
-  if (!dbUtils->validateListName(listName.c_str())) {
-    return -1;
-  }
-  File dataFile;
-  String fileName = "/__quarkdb__/" +listName + +".jsonl";
-  if (!SPIFFS.exists(fileName)) {
-    return -1;
-  }
-  dataFile = SPIFFS.open(fileName, "r");
-  String finalString = "";
-  int updateCount = 0;
-  if (dataFile) {
-    while (dataFile.available()) {
-      String jsonString = dataFile.readStringUntil('\n');
-      JsonDocument jsonLineDocument;
-      DeserializationError error = deserializeJson(jsonLineDocument, jsonString);
-      if(error || jsonString == "") {
-        continue;
-      }
-      JsonObject root = filterDoc->as<JsonObject>();
-      bool mismatch = dbFilter->filterParse(root, jsonLineDocument, false);
-      if (mismatch) {
-        if (finalString == "") {
-          finalString = finalString + jsonString;
-        } else {
-          finalString = finalString + "\n" + jsonString;
-        }
-        continue;
-      } else {
-       
-        if (finalString == "") {
-          finalString = finalString + updateObjectJson;
-        } else {
-          finalString = finalString + "\n" + updateObjectJson;
-        }
-        updateCount++;
-         Serial.println(" updating object" + String(updateCount));
-      }
-    }
-    dataFile.close();
-    dataFile = SPIFFS.open(fileName, "w");
-    if (!dataFile) {
-      Serial.println("Error opening file for writing");
-      return -1;
-    }
-    dataFile.println(finalString);
-    dataFile.close();
-  } else {
-    Serial.println("Error opening database.json");
-  }
-  return updateCount;
+  return this->rewriteList(listName, filterDoc, &updateObjectJson);
 }
 
 // Delete records in the list
@@ -151,57 +106,90 @@ int DBWriteProcessor::deleteRecords(String listName, String selector) {
   DeserializationError error = deserializeJson(filterDoc, selector);
   if (error) {
     Serial.println("ERROR: Invalid filter->" + selector);
-    return false;
+    return -1;
   }
   return this->deleteFromJson(listName, &filterDoc);
 }
 // Delete records in the list
 int DBWriteProcessor::deleteFromJson(String listName, JsonDocument* filterDoc) {
+  return this->rewriteList(listName, filterDoc, NULL);
+}
+
+// Rewrite the list with matching records replaced by updateObjectJson, or
+// removed when updateObjectJson is NULL. Returns the number of matches.
+// The new contents go to a temp file that only replaces the list once fully
+// written, so a power loss never leaves the list truncated.
+int DBWriteProcessor::rewriteList(String listName, JsonDocument* filterDoc, const String* updateObjectJson) {
   listName.trim();
   if (!dbUtils->validateListName(listName.c_str())) {
-    return false;
+    return -1;
   }
-  File dataFile;
-  String fileName = "/__quarkdb__/" +listName + +".jsonl";
+  dbUtils->recoverList(listName);
+  String fileName = dbUtils->getListFileName(listName);
+  String tempFileName = dbUtils->getTempFileName(listName);
   if (!SPIFFS.exists(fileName)) {
+    return -1;
+  }
+  File dataFile = SPIFFS.open(fileName, "r");
+  if (!dataFile) {
+    Serial.println("Error opening file for reading");
+    return -1;
+  }
+  File tempFile = SPIFFS.open(tempFileName, "w");
+  if (!tempFile) {
+    Serial.println("Error opening file for writing");
+    dataFile.close();
+    return -1;
+  }
+  JsonObject root = filterDoc->as<JsonObject>();
+  int matchCount = 0;
+  bool writeOk = true;
+  while (writeOk && dataFile.available()) {
+    String jsonString = dataFile.readStringUntil('\n');
+    jsonString.trim();
+    JsonDocument jsonLineDocument;
+    DeserializationError error = deserializeJson(jsonLineDocument, jsonString);
+    if(error || jsonString == "") {
+      continue;
+    }
+    bool mismatch = dbFilter->filterParse(root, jsonLineDocument, false);
+    if (!mismatch) {
+      matchCount++;
+      if (updateObjectJson == NULL) {
+        continue;
+      }
+      jsonString = *updateObjectJson;
+      Serial.println(" updating object" + String(matchCount));
+    }
+    writeOk = tempFile.println(jsonString) == jsonString.length() + 2;
+  }
+  dataFile.close();
+  tempFile.close();
+  if (!writeOk) {
+    Serial.println("Error writing file ->" + tempFileName);
+    SPIFFS.remove(tempFileName);
+    return -1;
+  }
+  // Nothing changed, so skip the flash write
+  if (matchCount == 0) {
+    SPIFFS.remove(tempFileName);
+    return 0;
+  }
+  if (!this->replaceListFile(fileName, tempFileName)) {
+    // The temp file is kept so recoverList() can finish the swap later
+    Serial.println("Error replacing list ->" + listName);
+    return -1;
+  }
+  return matchCount;
+}
+
+// Swap the fully written temp file in for the list file. SPIFFS rename
+// fails when the target exists, so the list file is removed first.
+bool DBWriteProcessor::replaceListFile(String fileName, String tempFileName) {
+  if (SPIFFS.exists(fileName) && !SPIFFS.remove(fileName)) {
     return false;
   }
-  dataFile = SPIFFS.open(fileName, "r");
-  String finalString = "";
-  int deleteCount = 0;
-  if (dataFile) {
-    while (dataFile.available()) {
-      String jsonString = dataFile.readStringUntil('\n');
-      JsonDocument jsonLineDocument;
-      DeserializationError error = deserializeJson(jsonLineDocument, jsonString);
-      if(error || jsonString == "") {
-        continue;
-      }
-      JsonObject root = filterDoc->as<JsonObject>();
-      bool mismatch = dbFilter->filterParse(root, jsonLineDocument, false);
-      if (mismatch) {
-        if (finalString == "") {
-          finalString = finalString + jsonString;
-        } else {
-          finalString = finalString + "\n" + jsonString;
-        }
-        continue;
-      } else {
-        deleteCount++;
-      }
-    }
-    dataFile.close();
-    dataFile = SPIFFS.open(fileName, "w");
-    if (!dataFile) {
-      Serial.println("Error opening file for writing");
-      return -1;
-    }
-    dataFile.println(finalString);
-    dataFile.close();
-  } else {
-    Serial.println("Error opening database.json");
-  }
-  return deleteCount;
+  return SPIFFS.rename(tempFileName, fileName);
 }
 
 // Add record in the list
@@ -211,21 +199,48 @@ bool DBWriteProcessor::addRecord(String listName, JsonObject* jsonObject) {
     Serial.println("ERROR:List Name Invalid ->" + listName );
     return false;
   }
-  String fileName = "/__quarkdb__/" +listName + +".jsonl";
+  dbUtils->recoverList(listName);
+  String fileName = dbUtils->getListFileName(listName);
   if(!SPIFFS.exists(fileName)) {
     Serial.println("ERROR:List does not exist ->" + listName );
     return false;
   }
   String jsonString;
-  File file;
   serializeJson((*jsonObject), jsonString);
+  // A power loss during an earlier append can leave a partial last line with
+  // no newline. Terminate it so this record starts on its own line.
+  bool needsNewline = false;
+  File file = SPIFFS.open(fileName, "r");
+  if (file) {
+    size_t fileSize = file.size();
+    if (fileSize > 0 && file.seek(fileSize - 1)) {
+      needsNewline = file.read() != '\n';
+    }
+    file.close();
+  }
   file = SPIFFS.open(fileName, "a");
   if (!file) {
     Serial.println("Error opening file for writing");
     return false;
   }
-  file.println(jsonString);
+  bool writeOk = true;
+  if (needsNewline) {
+    writeOk = file.println() == 2;
+  }
+  writeOk = writeOk && file.println(jsonString) == jsonString.length() + 2;
   Serial.println("writing record " +jsonString );
   file.close();
-  return true;
+  return writeOk;
+}
+
+// Sets the max records the list can hold
+// TBD: value is stored but not enforced by write operations yet
+void DBWriteProcessor::setMaxRecords(int maxRecords) {
+  this->maxRecords = maxRecords;
+}
+
+// Sets the max size of a single record
+// TBD: value is stored but not enforced by write operations yet
+void DBWriteProcessor::setMaxRecordSize(int maxRecordSize) {
+  this->maxRecordSize = maxRecordSize;
 }

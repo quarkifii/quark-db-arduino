@@ -53,7 +53,7 @@ void CommandParser::init(DBReadProcessor* readProcessor, DBWriteProcessor* write
 }
 String sterilizeCommandPart(String tokStr) {
  String fullCommand = tokStr.substring(tokStr.indexOf("("));
- if(!fullCommand.startsWith("(") || fullCommand.lastIndexOf(")") != fullCommand.length() - 1) {
+ if(!fullCommand.startsWith("(") || fullCommand.lastIndexOf(")") != (int)fullCommand.length() - 1) {
   return "ERROR:Use valid command";
  }
  return "";
@@ -100,6 +100,15 @@ String CommandParser::processCommand(String cmd) {
   if (mainRefCommand.startsWith("show lists")) {
     return readProcessor->getListNames();
   }
+  // db.create(..) and db.delete(..) have one dot, list operations such as
+  // db.<list>.add(..) have two, so a list named e.g. "createdItems" is not
+  // mistaken for the create command
+  int dotCount = 0;
+  for (unsigned int i = 0; i < mainCommand.length(); i++) {
+    if (mainCommand[i] == '.') {
+      dotCount++;
+    }
+  }
   char* token = strtok((char*)mainCommand.c_str(), ".");
   short tokenCount = 0;
   String listName = "";
@@ -112,7 +121,7 @@ String CommandParser::processCommand(String cmd) {
     if (tokenCount == 1 && tokStr.length() == 0) {
       return "ERROR:Invalid command -> Empty db";
     }
-    if (tokenCount == 1 && tokStr.length() > 0 && tokStr.startsWith("create", 0)) {
+    if (tokenCount == 1 && dotCount == 1 && tokStr == "create") {
       String fullCommand = sterilizeCommandPart(coreCmd);
       if(fullCommand != "") return fullCommand;
       String lName = preProcessCommand(coreCmd);
@@ -121,7 +130,7 @@ String CommandParser::processCommand(String cmd) {
       }
       return lName;
     }
-    if (tokenCount == 1 && tokStr.length() > 0 && tokStr.startsWith("delete", 0)) {
+    if (tokenCount == 1 && dotCount == 1 && tokStr == "delete") {
       String fullCommand = sterilizeCommandPart(coreCmd);
       if(fullCommand != "") return fullCommand;
       String lName = preProcessCommand(coreCmd);
@@ -185,7 +194,7 @@ String CommandParser::processCommand(String cmd) {
 String CommandParser::preProcessCommand(String command) {
   String listName = command.substring(command.indexOf("(") + 1, command.lastIndexOf(")"));
   listName.trim();
-  if (!listName.startsWith("\"") || listName.lastIndexOf("\"") != listName.length() - 1) {
+  if (!listName.startsWith("\"") || listName.lastIndexOf("\"") != (int)listName.length() - 1) {
     return "ERROR:Enclose list name in double quotes(\")";
   }
   String fList = listName.substring(listName.indexOf("\"") + 1, listName.lastIndexOf("\""));
@@ -198,7 +207,7 @@ String CommandParser::preProcessCommand(String command) {
 
 // Preprocess command to perform list specific operations
 String CommandParser::preProcessListCommand(String listName, String commandList) {
-  if (!commandList.startsWith("{") || commandList.lastIndexOf("}") != commandList.length() - 1) {
+  if (!commandList.startsWith("{") || commandList.lastIndexOf("}") != (int)commandList.length() - 1) {
     return "ERROR:Add valid json object with {}";
   }
   String json = commandList.substring(commandList.indexOf("{"), commandList.lastIndexOf("}")) + "}";
@@ -318,3 +327,13 @@ String CommandParser::processDelete(String listName) {
 }
 
 
+// Sets the max records shown by the CLI
+void CommandParser::setMaxRecords(int maxRecords) {
+  this->maxRecords = maxRecords;
+}
+
+// Sets the max record size shown by the CLI
+// TBD: value is reported but not enforced yet
+void CommandParser::setMaxRecordSize(int maxRecordSize) {
+  this->maxRecordSize = maxRecordSize;
+}

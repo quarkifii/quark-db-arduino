@@ -1,0 +1,11 @@
+# LeakSanitizer suppressions for known, by-design allocations in QuarkDB.
+# Each of these allocates its helper objects once with `new` and never frees
+# them (the classes have no destructors). On a device QuarkDB is a global
+# that lives forever, so this is harmless there. Anything not listed here
+# that leaks still fails the test run.
+# Remove an entry once the matching class gets a destructor.
+leak:QuarkDB::init
+leak:DBReadProcessor::DBReadProcessor
+leak:DBWriteProcessor::DBWriteProcessor
+leak:DBFilterProcessor::DBFilterProcessor
+leak:CommandParser::CommandParser

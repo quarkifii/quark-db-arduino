@@ -72,6 +72,8 @@ bool DBFilterProcessor::innerObjectParse(JsonPair kvx, JsonVariant jsonCheckObje
       innerMismatch = true;
     }
   } else if (String(kvx.key().c_str()) == "$eleMatch" && kvx.value().is<JsonObject>() && jsonCheckObject.is<JsonArray>()) {
+    // No element matched yet, so an empty array is a mismatch
+    innerMismatch = true;
     for (JsonVariant arrayItem : jsonCheckObject.as<JsonArray>()) {
       bool testElement = filterParse(kvx.value().as<JsonObject>(), arrayItem, true);
       if (!testElement) {
@@ -88,17 +90,19 @@ bool DBFilterProcessor::innerObjectParse(JsonPair kvx, JsonVariant jsonCheckObje
 }
 
 //Parse filter to go recursively inside document to scan and search
+//Every key of the filter must match (AND); returns true on the first mismatch
 bool DBFilterProcessor::filterParse(JsonObject rootFilter, JsonVariant jsonLineDocument, bool isArray) {
-  bool mismatch = false;
   for (JsonPair kv : rootFilter) {
     String keyStr = String(kv.key().c_str());
+    bool isOperator = isArray && (keyStr == "$gt" || keyStr == "$gte" || keyStr == "$lt" || keyStr == "$lte" || keyStr == "$eq" || keyStr == "$eleMatch");
     JsonVariant jsonCheckObject;
-    if (isArray && (keyStr == "$gt" || keyStr == "$gte" || keyStr == "$lt" || keyStr == "$lte" || keyStr == "$eq" || keyStr == "$eleMatch")) {
+    if (isOperator) {
       jsonCheckObject = jsonLineDocument;
     } else {
       jsonCheckObject = navigateJson(jsonLineDocument, keyStr.c_str());
     }
-    if (isArray && (keyStr == "$gt" || keyStr == "$gte" || keyStr == "$lt" || keyStr == "$lte" || keyStr == "$eq" || keyStr == "$eleMatch")) {
+    bool mismatch = false;
+    if (isOperator) {
       mismatch = innerObjectParse(kv, jsonCheckObject);
     } else if (kv.value().is<float>()) {
       mismatch = filterLine<float>(jsonCheckObject, kv);
@@ -107,25 +111,29 @@ bool DBFilterProcessor::filterParse(JsonObject rootFilter, JsonVariant jsonLineD
     } else if (kv.value().is<bool>()) {
       mismatch = filterLine<bool>(jsonCheckObject, kv);
     } else if (kv.value().is<JsonObject>()) {
-      bool innerMismatch = false;
+      //Every operator on the field must match, e.g. {"$gt" : 1, "$lt" : 5}
       for (JsonPair kvx : kv.value().as<JsonObject>()) {
-        innerMismatch = innerObjectParse(kvx, jsonCheckObject);
-      }
-      if (innerMismatch) {
-        return true;
+        if (innerObjectParse(kvx, jsonCheckObject)) {
+          mismatch = true;
+          break;
+        }
       }
     } else {
       mismatch = true;
     }
+    if (mismatch) {
+      return true;
+    }
   }
 
-  return mismatch;
+  return false;
 }
 // Navigate in the object to get the required value
 JsonVariant DBFilterProcessor::navigateJson(JsonVariant root, const char* path) {
   JsonVariant current = root;
+  // Tokenize a copy so the caller's path string is not modified
   String mainRefPath = String(path);
-  char* token = strtok((char*)path, ".");
+  char* token = strtok((char*)mainRefPath.c_str(), ".");
   bool valid = true;
   while (token != NULL && valid) {
     if (current.is<JsonObject>()) {
@@ -140,8 +148,8 @@ JsonVariant DBFilterProcessor::navigateJson(JsonVariant root, const char* path) 
   }
 
   if (!valid) {
-    JsonDocument doc;
-    return doc;
+    // Null variant; must not point into a local JsonDocument destroyed on return
+    return JsonVariant();
   }
   return current;
 }

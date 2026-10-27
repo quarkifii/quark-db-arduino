@@ -37,6 +37,9 @@ class DBUtils {
     DBUtils();
     bool validateListName(const char* instr);
     bool isTokenDigit(const char* instr);
+    String getListFileName(String listName);
+    String getTempFileName(String listName);
+    bool recoverList(String listName);
 };
 
 #endif
