@@ -74,10 +74,15 @@ bool DBWriteProcessor::deleteList(String listName) {
     Serial.println("ERROR:List does not exist ->" + listName );
     return false;
   }
-  // Remove any temp file first so it can never be recovered as the list
+  // Remove leftover rewrite files first so a ".new" file can never bring
+  // the list back if power is lost before the list file is removed
   String tempFileName = dbUtils->getTempFileName(listName);
   if(SPIFFS.exists(tempFileName)) {
     SPIFFS.remove(tempFileName);
+  }
+  String newFileName = dbUtils->getNewFileName(listName);
+  if(SPIFFS.exists(newFileName) && !SPIFFS.remove(newFileName)) {
+    return false;
   }
   return SPIFFS.remove(fileName);
 }
@@ -117,8 +122,9 @@ int DBWriteProcessor::deleteFromJson(String listName, JsonDocument* filterDoc) {
 
 // Rewrite the list with matching records replaced by updateObjectJson, or
 // removed when updateObjectJson is NULL. Returns the number of matches.
-// The new contents go to a temp file that only replaces the list once fully
-// written, so a power loss never leaves the list truncated.
+// The new contents go to a ".tmp" file, renamed to ".new" once fully written
+// and then installed as the list, so a power loss never leaves the list
+// truncated (see DBUtils::recoverList).
 int DBWriteProcessor::rewriteList(String listName, JsonDocument* filterDoc, const String* updateObjectJson) {
   listName.trim();
   if (!dbUtils->validateListName(listName.c_str())) {
@@ -175,21 +181,18 @@ int DBWriteProcessor::rewriteList(String listName, JsonDocument* filterDoc, cons
     SPIFFS.remove(tempFileName);
     return 0;
   }
-  if (!this->replaceListFile(fileName, tempFileName)) {
-    // The temp file is kept so recoverList() can finish the swap later
+  // Marks the rewrite complete: from here a power loss rolls forward
+  if (!SPIFFS.rename(tempFileName, dbUtils->getNewFileName(listName))) {
+    Serial.println("Error writing file ->" + tempFileName);
+    SPIFFS.remove(tempFileName);
+    return -1;
+  }
+  if (!dbUtils->installNewFile(listName)) {
+    // The ".new" file is kept so recoverList() can install it later
     Serial.println("Error replacing list ->" + listName);
     return -1;
   }
   return matchCount;
-}
-
-// Swap the fully written temp file in for the list file. SPIFFS rename
-// fails when the target exists, so the list file is removed first.
-bool DBWriteProcessor::replaceListFile(String fileName, String tempFileName) {
-  if (SPIFFS.exists(fileName) && !SPIFFS.remove(fileName)) {
-    return false;
-  }
-  return SPIFFS.rename(tempFileName, fileName);
 }
 
 // Add record in the list

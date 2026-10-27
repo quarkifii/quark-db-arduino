@@ -48,7 +48,7 @@ class QuarkDB {
     bool deleteList(String listName);
     int getRecordCount(String listName);
     int getRecords(String listName, String selector, JsonDocument* resultDocument);
-    int getRecords(String listName, String selector, JsonDocument* resultDocument , byte limitRows);
+    int getRecords(String listName, String selector, JsonDocument* resultDocument , int limitRows);
     int updateRecords(String listName , String selector,JsonObject document);
     int deleteRecords(String listName , String selector);
     bool addRecord(String listName, JsonObject document);

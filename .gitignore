@@ -1,0 +1,24 @@
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local CMake builds of the test suite (Docker builds into a named volume)
+build/
+test/build/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+Testing/
+
+# Compiled objects and binaries
+*.o
+*.a
+*.elf
+*.bin

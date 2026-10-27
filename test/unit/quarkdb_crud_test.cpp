@@ -45,6 +45,20 @@ TEST_F(QuarkDBTest, CreateListAcceptsAlnumUnderscoreDash) {
   EXPECT_TRUE(db.createList("a_B-9"));
 }
 
+TEST_F(QuarkDBTest, CreateListAcceptsUpTo12Characters) {
+  EXPECT_TRUE(db.createList("abcdefghijkl"));
+  EXPECT_EQ(listPath("abcdefghijkl").size(), fs::MockFS::kMaxPathLen);
+  EXPECT_TRUE(add("abcdefghijkl", R"({"x":1})"));
+  EXPECT_EQ(update("abcdefghijkl", "{}", R"({"x":2})"), 1);
+  EXPECT_EQ(db.deleteRecords("abcdefghijkl", "{}"), 1);
+  EXPECT_TRUE(db.deleteList("abcdefghijkl"));
+}
+
+TEST_F(QuarkDBTest, CreateListRejectsNamesLongerThan12) {
+  EXPECT_FALSE(db.createList("abcdefghijklm"));
+  EXPECT_TRUE(SPIFFS.paths().empty());
+}
+
 TEST_F(QuarkDBTest, CreateListRejectsDuplicate) {
   ASSERT_TRUE(db.createList("sensors"));
   EXPECT_FALSE(db.createList("sensors"));
@@ -312,15 +326,26 @@ TEST_F(QuarkDBTest, GetRecordsEleMatchOnObjectArray) {
 TEST_F(QuarkDBTest, GetRecordsLimitRowsCapsResultButReportsTotal) {
   seedPeople();
   JsonDocument result;
-  int total = db.getRecords("people", "{}", &result, (byte)2);
+  int total = db.getRecords("people", "{}", &result, 2);
   EXPECT_EQ(total, 5);  // return value counts every match, not just returned rows
   EXPECT_EQ(names(result), (Names{"alice", "bob"}));
+}
+
+TEST_F(QuarkDBTest, GetRecordsLimitAbove255IsNotTruncated) {
+  ASSERT_TRUE(db.createList("big"));
+  for (int i = 0; i < 300; i++) ASSERT_TRUE(add("big", R"({"v":1})"));
+  JsonDocument all;
+  EXPECT_EQ(db.getRecords("big", "{}", &all, 300), 300);
+  EXPECT_EQ(all.size(), 300u);
+  JsonDocument some;
+  EXPECT_EQ(db.getRecords("big", "{}", &some, 256), 300);
+  EXPECT_EQ(some.size(), 256u);
 }
 
 TEST_F(QuarkDBTest, GetRecordsLimitZeroReturnsEmptyArray) {
   seedPeople();
   JsonDocument result;
-  db.getRecords("people", "{}", &result, (byte)0);
+  db.getRecords("people", "{}", &result, 0);
   EXPECT_EQ(result.size(), 0u);
 }
 

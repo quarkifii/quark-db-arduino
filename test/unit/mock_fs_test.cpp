@@ -81,3 +81,24 @@ TEST_F(MockFSTest, PowerLossAfterTruncatingOpenDropsLaterWrites) {
   EXPECT_TRUE(SPIFFS.exists("/f"));
   EXPECT_EQ(SPIFFS.readRaw("/f"), "");   // truncated, new data never landed
 }
+
+TEST_F(MockFSTest, PathsLongerThan31CharactersCannotBeCreated) {
+  std::string ok(31, 'a'), tooLong(32, 'a');
+  ok[0] = tooLong[0] = '/';
+  EXPECT_TRUE(SPIFFS.open(ok.c_str(), "w"));
+  EXPECT_FALSE(SPIFFS.open(tooLong.c_str(), "w"));
+  EXPECT_FALSE(SPIFFS.open(tooLong.c_str(), "a"));
+  EXPECT_FALSE(SPIFFS.rename(ok.c_str(), tooLong.c_str()));
+}
+
+TEST_F(MockFSTest, PowerLossDuringRemoveLeavesFile) {
+  SPIFFS.writeRaw("/f", "abcdef");
+  SPIFFS.powerLossOnRemove(true);
+  EXPECT_FALSE(SPIFFS.remove("/f"));
+  SPIFFS.powerOn();
+  EXPECT_EQ(SPIFFS.readRaw("/f"), "abc");
+  SPIFFS.powerLossOnRemove(false);
+  EXPECT_FALSE(SPIFFS.remove("/f"));
+  SPIFFS.powerOn();
+  EXPECT_EQ(SPIFFS.readRaw("/f"), "abc");
+}

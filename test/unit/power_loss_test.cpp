@@ -1,6 +1,7 @@
-// Power-loss safety: update/delete rewrite a list through a temp file that is
-// swapped in only once complete, and recoverList() finishes or rolls back an
-// interrupted swap on the next access.
+// Power-loss safety: update/delete write the new list to ".tmp", rename it to
+// ".new" once complete, remove ".jsonl" and rename ".new" into its place.
+// recoverList() discards ".tmp" (always incomplete) and installs ".new"
+// (always complete) on the next access, whatever state the remove left.
 #include "test_helpers.h"
 
 class PowerLossTest : public QuarkDBTest {
@@ -17,6 +18,48 @@ TEST_F(PowerLossTest, UpdateWritesThroughTempFileAndCleansUp) {
   seedPeople();
   ASSERT_EQ(update("people", R"({"name":"alice"})", R"({"name":"ann"})"), 1);
   EXPECT_FALSE(SPIFFS.exists(tmpPath("people").c_str()));
+  EXPECT_FALSE(SPIFFS.exists(newPath("people").c_str()));
+  EXPECT_EQ(findNames("people", "{}"), (Names{"ann", "bob", "carol", "dave", "erin"}));
+}
+
+TEST_F(PowerLossTest, PowerLossBeforeRemovingListRollsForward) {
+  seedPeople();
+  SPIFFS.powerLossOnRemove(/*partial=*/false);
+  update("people", R"({"name":"alice"})", R"({"name":"ann"})");
+  ASSERT_TRUE(SPIFFS.exists(newPath("people").c_str()));
+  reboot();
+  EXPECT_EQ(findNames("people", "{}"), (Names{"ann", "bob", "carol", "dave", "erin"}));
+  EXPECT_FALSE(SPIFFS.exists(newPath("people").c_str()));
+}
+
+// The case a plain "keep .jsonl if it exists" rule gets wrong: power is cut
+// halfway through removing the list file, which survives half-erased.
+TEST_F(PowerLossTest, PowerLossWhileRemovingListInstallsCompleteNewFile) {
+  seedPeople();
+  SPIFFS.powerLossOnRemove(/*partial=*/true);
+  update("people", R"({"name":"alice"})", R"({"name":"ann"})");
+  ASSERT_TRUE(SPIFFS.exists(listPath("people").c_str()));  // half-erased
+  reboot();
+  EXPECT_EQ(findNames("people", "{}"), (Names{"ann", "bob", "carol", "dave", "erin"}));
+  EXPECT_EQ(db.getRecordCount("people"), 5);
+}
+
+TEST_F(PowerLossTest, PowerLossWhileRemovingListDuringDeleteRecords) {
+  seedPeople();
+  SPIFFS.powerLossOnRemove(/*partial=*/true);
+  db.deleteRecords("people", R"({"active":true})");
+  reboot();
+  EXPECT_EQ(findNames("people", "{}"), (Names{"bob", "dave"}));
+}
+
+TEST_F(PowerLossTest, PowerLossDuringRecoveryIsRecoveredNextTime) {
+  seedPeople();
+  SPIFFS.powerLossOnRemove(/*partial=*/true);
+  update("people", R"({"name":"alice"})", R"({"name":"ann"})");
+  SPIFFS.powerOn();
+  SPIFFS.powerLossOnRemove(/*partial=*/true);  // cut again during recovery
+  db.getRecordCount("people");
+  reboot();
   EXPECT_EQ(findNames("people", "{}"), (Names{"ann", "bob", "carol", "dave", "erin"}));
 }
 
@@ -49,21 +92,28 @@ TEST_F(PowerLossTest, PartialTempFileNextToListIsDiscarded) {
   EXPECT_EQ(SPIFFS.readRaw(listPath("people")), original);
 }
 
-TEST_F(PowerLossTest, CompleteTempFileIsSwappedInWhenListFileIsGone) {
+TEST_F(PowerLossTest, NewFileIsInstalledWhenListFileIsGone) {
   // State after power loss between removing the list file and the rename.
-  SPIFFS.writeRaw(tmpPath("people"), "{\"name\":\"ann\"}\r\n{\"name\":\"bob\"}\r\n");
+  SPIFFS.writeRaw(newPath("people"), "{\"name\":\"ann\"}\r\n{\"name\":\"bob\"}\r\n");
   reboot();
   EXPECT_EQ(db.getRecordCount("people"), 2);
   EXPECT_TRUE(SPIFFS.exists(listPath("people").c_str()));
-  EXPECT_FALSE(SPIFFS.exists(tmpPath("people").c_str()));
+  EXPECT_FALSE(SPIFFS.exists(newPath("people").c_str()));
   EXPECT_EQ(findNames("people", "{}"), (Names{"ann", "bob"}));
+}
+
+TEST_F(PowerLossTest, LoneTempFileIsDiscarded) {
+  SPIFFS.writeRaw(tmpPath("people"), "{\"name\":\"ann\"}\r\n");
+  reboot();
+  EXPECT_EQ(db.getRecordCount("people"), -1);
+  EXPECT_TRUE(SPIFFS.paths().empty());
 }
 
 TEST_F(PowerLossTest, EveryOperationRecoversAnInterruptedSwap) {
   const std::string content = "{\"name\":\"ann\"}\r\n";
   auto interrupted = [&] {
     SPIFFS.reset();
-    SPIFFS.writeRaw(tmpPath("people"), content);
+    SPIFFS.writeRaw(newPath("people"), content);
   };
 
   interrupted();
@@ -89,16 +139,19 @@ TEST_F(PowerLossTest, EveryOperationRecoversAnInterruptedSwap) {
 }
 
 TEST_F(PowerLossTest, InterruptedListStillShowsInShowLists) {
-  SPIFFS.writeRaw(tmpPath("people"), "{\"name\":\"ann\"}\r\n");
+  SPIFFS.writeRaw(newPath("people"), "{\"name\":\"ann\"}\r\n");
+  SPIFFS.writeRaw(tmpPath("other"), "{\"name\":\"half");
   Serial.reset();
   Serial.feed("QUARKDB>show lists\n");
   db.processSerialCommand();
   EXPECT_NE(Serial.output().find("Lists found are..\npeople"), std::string::npos) << Serial.output();
+  EXPECT_EQ(Serial.output().find("other"), std::string::npos) << Serial.output();
 }
 
-TEST_F(PowerLossTest, DeleteListRemovesLeftoverTempFile) {
+TEST_F(PowerLossTest, DeleteListRemovesLeftoverRewriteFiles) {
   seedPeople();
   SPIFFS.writeRaw(tmpPath("people"), "junk");
+  SPIFFS.writeRaw(newPath("people"), "{\"name\":\"zed\"}\r\n");
   EXPECT_TRUE(db.deleteList("people"));
   EXPECT_TRUE(SPIFFS.paths().empty());
 }

@@ -141,8 +141,9 @@ int DBReadProcessor::queryJsonCount(String listName) {
 }
 
 // List name for a file in the DB folder, or "" if the file is not a list.
-// A temp file without its list file is a list whose rewrite was interrupted
-// mid-swap; it is still listed and gets recovered on its next access.
+// A ".new" file without its list file is a list whose rewrite was
+// interrupted mid-swap; it is still listed and gets installed on its next
+// access. ".tmp" files are incomplete and never listed.
 String DBReadProcessor::listNameFromPath(String path) {
   if (!path.startsWith("/__quarkdb__/")) {
     return "";
@@ -151,7 +152,7 @@ String DBReadProcessor::listNameFromPath(String path) {
   if (path.endsWith(".jsonl")) {
     return name;
   }
-  if (path.endsWith(".tmp") && !SPIFFS.exists(dbUtils->getListFileName(name))) {
+  if (path.endsWith(".new") && !SPIFFS.exists(dbUtils->getListFileName(name))) {
     return name;
   }
   return "";

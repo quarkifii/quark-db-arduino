@@ -83,6 +83,9 @@ class Dir {
 
 class MockFS {
  public:
+  // SPIFFS_OBJ_NAME_LEN is 32 on ESP8266 and ESP32, including the NUL.
+  static constexpr size_t kMaxPathLen = 31;
+
   // ---- Arduino FS API ----
   bool begin() { return begin(false); }
   bool begin(bool /*formatOnFail*/) {
@@ -98,6 +101,17 @@ class MockFS {
 
   bool remove(const char* path) {
     if (poweredOff_) return false;
+    if (removePowerLoss_ != RemovePowerLoss::None && files_.count(path)) {
+      // Power is cut while the file is being removed. With Partial, some of
+      // its pages are already gone but the file still exists.
+      if (removePowerLoss_ == RemovePowerLoss::Partial) {
+        auto& content = *files_[path];
+        content.resize(content.size() / 2);
+      }
+      removePowerLoss_ = RemovePowerLoss::None;
+      poweredOff_ = true;
+      return false;
+    }
     return files_.erase(path) > 0;
   }
   bool remove(const String& path) { return remove(path.c_str()); }
@@ -105,7 +119,7 @@ class MockFS {
   File open(const String& path, const char* mode = "r") { return open(path.c_str(), mode); }
   // SPIFFS semantics: fails if `from` is missing or `to` already exists.
   bool rename(const char* from, const char* to) {
-    if (poweredOff_ || !files_.count(from) || files_.count(to)) return false;
+    if (poweredOff_ || !files_.count(from) || files_.count(to) || strlen(to) > kMaxPathLen) return false;
     files_[to] = files_[from];
     files_.erase(from);
     return true;
@@ -116,6 +130,7 @@ class MockFS {
     File f;
     std::string p(path), m(mode);
     if (poweredOff_ || failModes_.count(m)) return f;
+    if (p.size() > kMaxPathLen && m != "r") return f;  // name too long to create
     if (isDirectoryPath(p) && m == "r") {
       f.open_ = true;
       f.isDir_ = true;
@@ -158,6 +173,7 @@ class MockFS {
     files_.clear();
     failModes_.clear();
     powerLossModes_.clear();
+    removePowerLoss_ = RemovePowerLoss::None;
     poweredOff_ = false;
     beginResult_ = true;
     mounted_ = false;
@@ -166,9 +182,18 @@ class MockFS {
   // Simulate a power cut immediately after the next open() with this mode.
   // Every later write/remove/rename/open is dropped until powerOn().
   void powerLossAfterOpen(const std::string& mode) { powerLossModes_.insert(mode); }
+  // Simulate a power cut during the next remove(). The file survives: intact
+  // (cut before any page was erased) or with partial=true half-erased.
+  void powerLossOnRemove(bool partial) {
+    removePowerLoss_ = partial ? RemovePowerLoss::Partial : RemovePowerLoss::Before;
+  }
   bool poweredOff() const { return poweredOff_; }
   // "Reboot": flash keeps whatever was persisted before the power cut.
-  void powerOn() { powerLossModes_.clear(); poweredOff_ = false; }
+  void powerOn() {
+    powerLossModes_.clear();
+    removePowerLoss_ = RemovePowerLoss::None;
+    poweredOff_ = false;
+  }
   void setBeginResult(bool ok) { beginResult_ = ok; }
   int beginCalls() const { return beginCalls_; }
   // Make every open() with this mode ("r", "w", "a") fail until cleared.
@@ -207,6 +232,8 @@ class MockFS {
   std::map<std::string, std::shared_ptr<std::string>> files_;
   std::set<std::string> failModes_;
   std::set<std::string> powerLossModes_;
+  enum class RemovePowerLoss { None, Before, Partial };
+  RemovePowerLoss removePowerLoss_ = RemovePowerLoss::None;
   bool poweredOff_ = false;
   bool beginResult_ = true;
   bool mounted_ = false;

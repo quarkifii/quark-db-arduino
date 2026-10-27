@@ -28,6 +28,8 @@
 #define __QUARKDB_MAX_RECORDS__  300
 #define __QUARKDB_MAX_RECORD_SIZE__  500
 #define QUARKDB_SPIFFS_FILE_TYPE  2
+// SPIFFS paths are at most 31 characters: "/__quarkdb__/" + name + ".jsonl"
+#define __QUARKDB_MAX_LIST_NAME_LEN__  12
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -39,6 +41,8 @@ class DBUtils {
     bool isTokenDigit(const char* instr);
     String getListFileName(String listName);
     String getTempFileName(String listName);
+    String getNewFileName(String listName);
+    bool installNewFile(String listName);
     bool recoverList(String listName);
 };
 

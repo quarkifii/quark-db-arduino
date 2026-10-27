@@ -41,7 +41,6 @@ class DBWriteProcessor {
     int updateFromJson(String listName, JsonDocument* filterDoc, String updateObjectJson);
     int deleteFromJson(String listName, JsonDocument* filterDoc);
     int rewriteList(String listName, JsonDocument* filterDoc, const String* updateObjectJson);
-    bool replaceListFile(String fileName, String tempFileName);
   public:
     DBWriteProcessor(byte fileMode);
     bool createList(String listName);

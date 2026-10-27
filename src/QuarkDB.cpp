@@ -90,7 +90,7 @@ int QuarkDB::getRecords(String listName, String selector, JsonDocument* resultDo
     return readProcessor->getRecords(listName, selector, resultDocument, maxRecords);
 }
 // Retrieves records as a JSON Array in the result document. Limit using maximum rows to return
-int QuarkDB::getRecords(String listName, String selector, JsonDocument* resultDocument , byte limitRows) {
+int QuarkDB::getRecords(String listName, String selector, JsonDocument* resultDocument , int limitRows) {
   return readProcessor->getRecords(listName, selector, resultDocument, limitRows);
 }
 // Updates records as per the matching selector

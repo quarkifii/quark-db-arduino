@@ -19,6 +19,10 @@ inline std::string tmpPath(const std::string& listName) {
   return "/__quarkdb__/" + listName + ".tmp";
 }
 
+inline std::string newPath(const std::string& listName) {
+  return "/__quarkdb__/" + listName + ".new";
+}
+
 // Resets the mocked SPIFFS and Serial and gives every test an initialised DB.
 class QuarkDBTest : public ::testing::Test {
  protected:

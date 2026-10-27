@@ -74,6 +74,7 @@ SPIFFS.readRaw(path);                 // inspect what the DB wrote
 SPIFFS.failOpen("w");                 // make open(..., "w") fail ("r"/"a" too)
 SPIFFS.setBeginResult(false);         // simulate a mount failure
 SPIFFS.powerLossAfterOpen("w");       // cut power right after the next "w" open
+SPIFFS.powerLossOnRemove(true);       // cut power mid-remove; file survives half-erased
 SPIFFS.powerOn();                     // "reboot": flash keeps what was persisted
 SPIFFS.rename(from, to);              // SPIFFS rules: fails if `to` exists
 Serial.feed("QUARKDB>db.x.count()\n"); // drive processSerialCommand()
@@ -93,16 +94,21 @@ initialised `QuarkDB db` for every test, plus `add()`, `update()`,
 | `unit/command_parser_test.cpp` | The `QUARKDB>` serial CLI |
 | `unit/db_utils_test.cpp` | List-name and digit validation |
 | `unit/mock_fs_test.cpp` | Checks that the mock filesystem behaves correctly |
-| `unit/power_loss_test.cpp` | Crash safety: power cut while writing the temp file, between remove and rename, and mid-append, plus recovery on every operation |
+| `unit/power_loss_test.cpp` | Crash safety: power cut while writing `.tmp`, before or during the remove of `.jsonl` (including a half-erased file), during recovery, and mid-append, plus recovery on every operation |
 
 ## Behaviour notes
 
-- **Crash-safe rewrites.** `updateRecords()` and `deleteRecords()` write the
-  new list to `/__quarkdb__/<list>.tmp`, then remove the `.jsonl` and rename
-  the temp file into place. SPIFFS `rename()` fails if the target exists,
-  so the remove has to come first. Every list operation first calls
-  `DBUtils::recoverList()`, which discards a temp file if the `.jsonl` is
-  still there, or completes the rename if it isn't.
+- **Crash-safe rewrites.** `updateRecords()` and `deleteRecords()` write
+  the new list to `/__quarkdb__/<list>.tmp`, rename it to `.new` once it is
+  complete, remove the `.jsonl`, then rename `.new` to `.jsonl`. SPIFFS
+  `rename()` fails if the target exists, so the remove has to come first.
+  Every list operation first calls `DBUtils::recoverList()`: a `.tmp` is
+  always incomplete and is discarded, and a `.new` is always complete and is
+  installed. The decision never depends on whether a remove finished.
+- **List names** are 1–12 characters of letters, digits, `_` or `-`. The
+  longest path, `/__quarkdb__/<12 chars>.jsonl`, is 31 characters, the SPIFFS
+  limit on both cores (`SPIFFS_OBJ_NAME_LEN` 32 including the NUL). The mock
+  FS enforces the same 31-character limit.
 - **Torn appends.** `addRecord()` adds a newline first if the file doesn't
   end with one, so a partial line left by a power cut can't swallow the next
   record. Partial lines are skipped by reads and counts, and dropped by the

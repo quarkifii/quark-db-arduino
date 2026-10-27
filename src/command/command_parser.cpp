@@ -303,7 +303,7 @@ String CommandParser::processAdd(String listName, String json) {
 String CommandParser::processCreate(String listName) {
   listName.trim();
   if (!dbUtils->validateListName(listName.c_str())) {
-    return "ERROR:Non Empty alphanumeric , _ , - characters allowed only ->" + listName;
+    return "ERROR:1 to 12 alphanumeric , _ , - characters allowed only ->" + listName;
   }
   bool status = writeProcessor->createList(listName);
   if (status) {
@@ -316,7 +316,7 @@ String CommandParser::processCreate(String listName) {
 String CommandParser::processDelete(String listName) {
   listName.trim();
   if (!dbUtils->validateListName(listName.c_str())) {
-    return "ERROR:Non Empty alphanumeric , _ , - characters allowed only ->" + listName;
+    return "ERROR:1 to 12 alphanumeric , _ , - characters allowed only ->" + listName;
   }
   bool status = writeProcessor->deleteList(listName);
   if (status) {

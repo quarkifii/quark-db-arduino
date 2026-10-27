@@ -10,6 +10,13 @@ TEST(DBUtils, ValidateListNameAcceptsAllowedCharacters) {
   EXPECT_TRUE(u.validateListName("snake_case"));
   EXPECT_TRUE(u.validateListName("kebab-case"));
   EXPECT_TRUE(u.validateListName("9"));
+  EXPECT_TRUE(u.validateListName("abcdefghijkl"));     // 12, the maximum
+}
+
+TEST(DBUtils, ValidateListNameRejectsNamesLongerThan12) {
+  DBUtils u;
+  EXPECT_FALSE(u.validateListName("abcdefghijklm"));   // 13
+  EXPECT_FALSE(u.validateListName("a_very_long_list_name"));
 }
 
 TEST(DBUtils, ValidateListNameRejectsEmptyAndSpecialCharacters) {

@@ -154,8 +154,14 @@ TEST_F(CommandLineTest, ListsNamedLikeKeywordsWork) {
 
 TEST_F(CommandLineTest, ShowListsHidesTempFiles) {
   cli("QUARKDB>db.create(\"alpha\")");
-  SPIFFS.writeRaw(tmpPath("alpha"), "");   // leftover from an interrupted rewrite
+  SPIFFS.writeRaw(tmpPath("alpha"), "");   // leftovers from an interrupted rewrite
+  SPIFFS.writeRaw(newPath("alpha"), "");
   std::string out = cli("QUARKDB>show lists");
   EXPECT_TRUE(has(out, "Lists found are..\nalpha")) << out;
   EXPECT_FALSE(has(out, "alpha\nalpha")) << out;
+}
+
+TEST_F(CommandLineTest, CreateRejectsListNameLongerThan12) {
+  EXPECT_TRUE(has(cli("QUARKDB>db.create(\"abcdefghijklm\")"), "1 to 12 alphanumeric"));
+  EXPECT_TRUE(SPIFFS.paths().empty());
 }
