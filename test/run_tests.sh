@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# Copyright (c) 2024-2026 Quarkifi Technologies Pvt Ltd
+# SPDX-License-Identifier: MIT
+# See LICENSE at the repository root for the full license text.
+
 # Build and run the QuarkDB host unit tests inside a Docker container
 # (no Arduino board, SPIFFS or local toolchain needed).
 #

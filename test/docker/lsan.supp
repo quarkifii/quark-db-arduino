@@ -1,3 +1,7 @@
+# Copyright (c) 2024-2026 Quarkifi Technologies Pvt Ltd
+# SPDX-License-Identifier: MIT
+# See LICENSE at the repository root for the full license text.
+
 # LeakSanitizer suppressions for known, by-design allocations in QuarkDB.
 # Each of these allocates its helper objects once with `new` and never frees
 # them (the classes have no destructors). On a device QuarkDB is a global

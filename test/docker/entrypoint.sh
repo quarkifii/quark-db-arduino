@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# Copyright (c) 2024-2026 Quarkifi Technologies Pvt Ltd
+# SPDX-License-Identifier: MIT
+# See LICENSE at the repository root for the full license text.
+
 # Runs inside the container: configure, build and run the QuarkDB tests.
 # Expects the repository mounted at /quarkdb and a build cache at /build.
 set -euo pipefail

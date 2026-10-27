@@ -1,3 +1,7 @@
+# Copyright (c) 2024-2026 Quarkifi Technologies Pvt Ltd
+# SPDX-License-Identifier: MIT
+# See LICENSE at the repository root for the full license text.
+
 cmake_minimum_required(VERSION 3.16)
 project(QuarkDBTests CXX)
 

@@ -1,3 +1,7 @@
+# Copyright (c) 2024-2026 Quarkifi Technologies Pvt Ltd
+# SPDX-License-Identifier: MIT
+# See LICENSE at the repository root for the full license text.
+
 # Self-contained toolchain for the QuarkDB host unit tests.
 # GoogleTest and ArduinoJson are baked in so test runs need no network.
 FROM ubuntu:22.04
