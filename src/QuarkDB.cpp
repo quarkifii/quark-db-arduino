@@ -124,7 +124,7 @@ void QuarkDB::processSerialCommand() {
 
 // Removes all records from the list but keeps the list
 // TBD: not implemented yet, always returns false
-bool QuarkDB::removeRecords(String listName) {
+bool QuarkDB::removeRecords(String /*listName*/) {
   return false;
 }
 
