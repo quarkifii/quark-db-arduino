@@ -38,8 +38,8 @@ class DBWriteProcessor {
     String databaseName;
     DBUtils* dbUtils; 
     DBFilterProcessor* dbFilter; 
-    int updateFromJson(String listName, DynamicJsonDocument* filterDoc, String updateObjectJson);
-    int deleteFromJson(String listName, DynamicJsonDocument* filterDoc);
+    int updateFromJson(String listName, JsonDocument* filterDoc, String updateObjectJson);
+    int deleteFromJson(String listName, JsonDocument* filterDoc);
   public:
     DBWriteProcessor(byte fileMode);
     bool createList(String listName);

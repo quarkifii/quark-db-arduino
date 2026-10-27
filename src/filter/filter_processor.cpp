@@ -41,7 +41,6 @@ DBFilterProcessor::DBFilterProcessor() {
 //Parse internal object in recursive support
 bool DBFilterProcessor::innerObjectParse(JsonPair kvx, JsonVariant jsonCheckObject) {
   bool innerMismatch = false;
-  bool isMatch = false;
   if (String(kvx.key().c_str()) == "$eq" && kvx.value().is<float>()) {
     innerMismatch = filterLine<float>(jsonCheckObject, kvx);
   } else if (String(kvx.key().c_str()) == "$eq" && kvx.value().is<String>()) {
@@ -50,25 +49,25 @@ bool DBFilterProcessor::innerObjectParse(JsonPair kvx, JsonVariant jsonCheckObje
     innerMismatch = filterLine<bool>(jsonCheckObject, kvx);
   } else if (String(kvx.key().c_str()) == "$gt" && kvx.value().is<float>()) {
     if (jsonCheckObject.is<float>() && kvx.value().as<float>() < jsonCheckObject.as<float>()) {
-      isMatch = true;
+      innerMismatch = false;
     } else {
       innerMismatch = true;
     }
   } else if (String(kvx.key().c_str()) == "$lt" && kvx.value().is<float>()) {
     if (jsonCheckObject.is<float>() && kvx.value().as<float>() > jsonCheckObject.as<float>()) {
-      isMatch = true;
+      innerMismatch = false;
     } else {
       innerMismatch = true;
     }
   } else if (String(kvx.key().c_str()) == "$gte" && kvx.value().is<float>()) {
     if (jsonCheckObject.is<float>() && kvx.value().as<float>() <= jsonCheckObject.as<float>()) {
-      isMatch = true;
+      innerMismatch = false;
     } else {
       innerMismatch = true;
     }
   } else if (String(kvx.key().c_str()) == "$lte" && kvx.value().is<float>()) {
     if (jsonCheckObject.is<float>() && kvx.value().as<float>() >= jsonCheckObject.as<float>()) {
-      isMatch = true;
+      innerMismatch = false;
     } else {
       innerMismatch = true;
     }
@@ -141,7 +140,7 @@ JsonVariant DBFilterProcessor::navigateJson(JsonVariant root, const char* path) 
   }
 
   if (!valid) {
-    DynamicJsonDocument doc(10);
+    JsonDocument doc;
     return doc;
   }
   return current;

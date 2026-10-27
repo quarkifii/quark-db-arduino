@@ -45,6 +45,7 @@ Above defaults can be modified by relevant APIs as defined below
 
 ### Create a DB List
 #### Using API
+List name must be below 12 characters
 ```arduino
 bool cStatus = quarkDB.createList("testMyList");  
 if(cStatus)  {  
@@ -62,7 +63,7 @@ out# Successfully created ->testMyList
 ### Add Element to a DB List
 #### Using API
 ```arduino 
-DynamicJsonDocument doc(MAX_RECORD_SIZE);  
+JsonDocument doc;  
 doc["age"] = 23;  
 doc["name"] = "John";  
 bool statusA = quarkDB.addRecord("testMyList", doc.as<JsonObject>());  
@@ -99,9 +100,9 @@ $eleMatch - Matching with array element
 ```  
 ### Get Records from a DB List with empty filter
 #### Using API
-Results are returned in a reference of DynamicJsonDocument passed
+Results are returned in a reference of JsonDocument passed
 ```arduino 
-DynamicJsonDocument results(totalCount*MAX_RECORD_SIZE);  
+JsonDocument results;  
 //Get All records with empty filter  
 int count = quarkDB.getRecords("testMyList" , "{}" , &results);  
 serializeJson(results, Serial);  
@@ -125,9 +126,9 @@ out# [
 ```  
 ### Get Records from a DB List with basic equality filter
 #### Using API
-Results are returned in a reference of DynamicJsonDocument passed
+Results are returned in a reference of JsonDocument passed
 ```arduino 
-DynamicJsonDocument results(totalCount*MAX_RECORD_SIZE);  
+JsonDocument results;  
 //Get All records with records having age equal to 33  
 int count = quarkDB.getRecords("testMyList" , "{\"age\" : 23 }" , &results);  
 serializeJson(results, Serial);  
@@ -151,9 +152,9 @@ out# [
 ```  
 ### Get Records from a DB List with basic greater than filter
 #### Using API
-Results are returned in a reference of DynamicJsonDocument passed
+Results are returned in a reference of JsonDocument passed
 ```arduino 
-DynamicJsonDocument results(totalCount*MAX_RECORD_SIZE);  
+JsonDocument results;  
 //Get All records with records having age equal to 33  
 int count = quarkDB.getRecords("testMyList" , "{\"age\" : { \"$gt\" : 22 } }" , &results);  
 serializeJson(results, Serial);  
@@ -177,9 +178,9 @@ out# [
 ```  
 ### Get Records from a DB List with basic greater than or equal filter
 #### Using API
-Results are returned in a reference of DynamicJsonDocument passed
+Results are returned in a reference of JsonDocument passed
 ```arduino 
-DynamicJsonDocument results(totalCount*MAX_RECORD_SIZE);  
+JsonDocument results;  
 //Get All records with records having age equal to 33  
 int count = quarkDB.getRecords("testMyList" , "{\"age\" : { \"$gte\" : 22 } }" , &results);  
 serializeJson(results, Serial);  
@@ -203,9 +204,9 @@ out# [
 ```  
 ### Get Records from a DB List with basic less than filter
 #### Using API
-Results are returned in a reference of DynamicJsonDocument passed
+Results are returned in a reference of JsonDocument passed
 ```arduino 
-DynamicJsonDocument results(totalCount*MAX_RECORD_SIZE);  
+JsonDocument results;  
 //Get All records with records having age equal to 33  
 int count = quarkDB.getRecords("testMyList" , "{\"age\" : { \"$lt\" : 25 } }" , &results);  
 serializeJson(results, Serial);  
@@ -229,9 +230,9 @@ out# [
 ```  
 ### Get Records from a DB List with basic less than or equal filter
 #### Using API
-Results are returned in a reference of DynamicJsonDocument passed
+Results are returned in a reference of JsonDocument passed
 ```arduino 
-DynamicJsonDocument results(totalCount*MAX_RECORD_SIZE);  
+JsonDocument results;  
 //Get All records with records having age equal to 33  
 int count = quarkDB.getRecords("testMyList" , "{\"age\" : { \"$lte\" : 25 } }" , &results);  
 serializeJson(results, Serial);  
@@ -261,9 +262,9 @@ Suppose elements are as follows
 ]
 
 #### Using API
-Results are returned in a reference of DynamicJsonDocument passed
+Results are returned in a reference of JsonDocument passed
 ```arduino 
-DynamicJsonDocument results(totalCount*MAX_RECORD_SIZE);  
+JsonDocument results;  
 //Get All records with records having inner array one element equal to 2  
 int count = quarkDB.getRecords("testMyList" , "{\"innerArray\"  : { \"$eleMatch\": { \"$eq\" : 2 } } }" , &results);  
 serializeJson(results, Serial);  
@@ -299,7 +300,7 @@ out# [
 #### Using API
 Pass the filter to match records and the new updated object to replace matched records. Partial update is not supported now
 ```arduino 
-DynamicJsonDocument updateDoc(MAX_RECORD_SIZE);  
+JsonDocument updateDoc;  
 updateDoc["name"] = "Alter";  
 updateDoc["age"] = 43;  
 //pass the list name, matching selector and the new object to replace for all matched records  

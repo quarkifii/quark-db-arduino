@@ -7,7 +7,13 @@ int MAX_RECORD_SIZE = 110;
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
-  bool status = quarkDB.init(QUARKDB_SPIFFS_FILE_TYPE);
+  bool status = false;
+  short timeout = 0;
+  //Wait for max 30 secs init
+  while(!status && (++timeout) < 3000) {
+    status = quarkDB.init(QUARKDB_SPIFFS_FILE_TYPE);
+    delay(10);
+  }
   if(status) {
     Serial.println("QuarkDB initialized");
   }
@@ -33,7 +39,7 @@ void loop() {
 
   // Adding records to the list
   for(int i=0 ; i < 5; i++) {
-      DynamicJsonDocument doc(MAX_RECORD_SIZE);
+      JsonDocument doc;
       doc["name"] = nameArray[i];
       doc["age"] = ageArray[i];
       doc["temp"] = tempArray[i];
@@ -51,7 +57,7 @@ void loop() {
   }else {
     Serial.println("ERROR: Record Count not retrieved successfully");
   }
-  DynamicJsonDocument results(totalCount*MAX_RECORD_SIZE);
+  JsonDocument results;
   Serial.println("************* Matching temp value ******************");
   //Get Single record with single match of temp value
   int count = quarkDB.getRecords("testList" , "{\"temp\" : 23.4}" , &results);
@@ -72,7 +78,7 @@ void loop() {
   }
   Serial.println("");
   Serial.println("************* Matching multiple json value ******************");
-  DynamicJsonDocument resultSingle(MAX_RECORD_SIZE);
+  JsonDocument resultSingle;
   //Get Single record with with multiple match values
   int countMl = quarkDB.getRecords("testList" , "{\"temp\" : 23.4 , \"age\" : 30 , \"humidity\" : 73.4}" , &resultSingle);
   Serial.printf("%d Records retrieved successfully\n",countMl);
@@ -102,7 +108,7 @@ void loop() {
   }
   Serial.println("");
   Serial.println("************* Matching temp with greater than or equal value ******************");
-  DynamicJsonDocument resultMulti(5*MAX_RECORD_SIZE);
+  JsonDocument resultMulti;
   //Get 2 records with greater than or equal to operand "$gte"
   int countGMl = quarkDB.getRecords("testList" , "{\"temp\" : { \"$gte\" : 25.4 } }" , &resultMulti);
   Serial.printf("%d Records retrieved successfully\n",countGMl);
@@ -159,7 +165,7 @@ void loop() {
 
   Serial.println("");
    Serial.println("************* Matching with less than or equal value on mltiple elements******************");
-  DynamicJsonDocument resultNSingle(5*MAX_RECORD_SIZE);
+  JsonDocument resultNSingle;
     //Get Single record with less than or equal to operand "$lte"
   int countNMl = quarkDB.getRecords("testList" , "{\"temp\" : { \"$lte\" : 23.4 } ,\"age\" : { \"$lte\" : 30 }  }" , &resultNSingle);
   Serial.printf("%d Records retrieved successfully\n",countNMl);

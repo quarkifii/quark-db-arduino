@@ -5,7 +5,13 @@ QuarkDB quarkDB;
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
-  bool status = quarkDB.init(QUARKDB_SPIFFS_FILE_TYPE);
+  bool status = false;
+  short timeout = 0;
+  //Wait for max 30 secs init
+  while(!status && (++timeout) < 3000) {
+    status = quarkDB.init(QUARKDB_SPIFFS_FILE_TYPE);
+    delay(10);
+  }
   if(status) {
     Serial.println("QuarkDB initialized");
   }
