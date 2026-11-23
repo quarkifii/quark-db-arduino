@@ -240,6 +240,21 @@ extern HardwareSerial Serial;
 
 inline void delay(unsigned long) {}
 unsigned long millis();
+// Test hook: move the mock clock forward
+void advanceMillis(unsigned long ms);
 inline void yield() {}
+
+// Hardware random source used for list instance ids: ESP.random() on
+// ESP8266 (Esp.h, pulled in by the core's Arduino.h) and esp_random() on
+// ESP32 (esp_system.h, pulled in by esp32-hal.h).
+#if defined(ESP8266)
+class EspClass {
+ public:
+  uint32_t random() const;
+};
+extern EspClass ESP;
+#elif defined(ESP32)
+uint32_t esp_random();
+#endif
 
 #endif

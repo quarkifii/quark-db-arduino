@@ -27,6 +27,7 @@
 #include <ArduinoJson.h>
 #include "../utils/db_utils.h"
 #include "../filter/filter_processor.h"
+#include "write_listener.h"
 
 class DBWriteProcessor {
   
@@ -38,6 +39,7 @@ class DBWriteProcessor {
     String databaseName;
     DBUtils* dbUtils; 
     DBFilterProcessor* dbFilter; 
+    DBWriteListener* listener;
     int updateFromJson(String listName, JsonDocument* filterDoc, String updateObjectJson);
     int deleteFromJson(String listName, JsonDocument* filterDoc);
     int rewriteList(String listName, JsonDocument* filterDoc, const String* updateObjectJson);
@@ -50,6 +52,8 @@ class DBWriteProcessor {
     bool addRecord(String listName, JsonObject* jsonObject);
     void setMaxRecords(int maxRecords);
     void setMaxRecordSize(int maxRecords);          
+    // Observer notified after every successful write (API and CLI); NULL disables
+    void setListener(DBWriteListener* listener);
 };
 
 #endif

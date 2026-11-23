@@ -34,6 +34,10 @@
 QuarkDB::QuarkDB() {
   this->maxRecords = __QUARKDB_MAX_RECORDS__;
   this->maxRecordSize = __QUARKDB_MAX_RECORD_SIZE__;
+  this->readProcessor = nullptr;
+  this->writeProcessor = nullptr;
+  this->commandParser = nullptr;
+  syncManager.init(&oplog);
 }
 bool QuarkDB::init(byte fileMode) {
   this->fileMode = fileMode;
@@ -54,6 +58,9 @@ bool QuarkDB::init(byte fileMode) {
   this->writeProcessor = new DBWriteProcessor(fileMode);
   this->commandParser = new CommandParser(fileMode);
   commandParser->init(readProcessor, writeProcessor);
+  // Sync state is re-read from flash, as after a reboot
+  oplog.reset();
+  writeProcessor->setListener(&syncManager);
   return true;
 }
 
@@ -138,4 +145,58 @@ bool QuarkDB::removeAllLists() {
 // TBD: not implemented yet, always returns nullptr
 JsonDocument * QuarkDB::getDBStat() {
   return nullptr;
+}
+
+// ------------------------------------------------------- cloud backup ----
+
+bool QuarkDB::enableSync(QuarkTransport* transport, const QuarkSyncConfig& config) {
+  return syncManager.enableSync(transport, config);
+}
+
+void QuarkDB::disableSync() {
+  syncManager.disableSync();
+}
+
+bool QuarkDB::isSyncEnabled() {
+  return syncManager.isSyncEnabled();
+}
+
+bool QuarkDB::enableListSync(String listName, QuarkListSyncOptions options) {
+  return syncManager.enableListSync(listName, options);
+}
+
+bool QuarkDB::disableListSync(String listName) {
+  return syncManager.disableListSync(listName);
+}
+
+bool QuarkDB::isListSyncEnabled(String listName) {
+  return syncManager.isListSyncEnabled(listName);
+}
+
+int QuarkDB::syncCloud() {
+  return syncManager.syncCloud();
+}
+
+bool QuarkDB::handleMessage(const char* topic, String payload) {
+  return syncManager.handleMessage(topic, payload);
+}
+
+// Convenience for PubSubClient callbacks, whose payload is not NUL terminated
+bool QuarkDB::handleMessage(const char* topic, const uint8_t* payload, unsigned int length) {
+  String text;
+  if (payload != nullptr) {
+    text.reserve(length);
+    for (unsigned int i = 0; i < length; i++) {
+      text += (char)payload[i];
+    }
+  }
+  return syncManager.handleMessage(topic, text);
+}
+
+int QuarkDB::restoreFromCloud(String listName) {
+  return syncManager.restoreFromCloud(listName);
+}
+
+bool QuarkDB::getSyncInfo(String listName, JsonDocument* info) {
+  return syncManager.getSyncInfo(listName, info);
 }

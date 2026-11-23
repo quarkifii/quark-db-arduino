@@ -25,12 +25,29 @@
 #include <FS.h>
 
 #include <chrono>
+#include <random>
 
 HardwareSerial Serial;
 fs::MockFS SPIFFS;
 
+static uint32_t mockRandom() {
+  static std::mt19937 engine{std::random_device{}()};
+  return engine();
+}
+
+#if defined(ESP8266)
+EspClass ESP;
+uint32_t EspClass::random() const { return mockRandom(); }
+#elif defined(ESP32)
+uint32_t esp_random() { return mockRandom(); }
+#endif
+
+static unsigned long millisOffset = 0;
+
 unsigned long millis() {
   using namespace std::chrono;
   static const auto start = steady_clock::now();
-  return static_cast<unsigned long>(duration_cast<milliseconds>(steady_clock::now() - start).count());
+  return static_cast<unsigned long>(duration_cast<milliseconds>(steady_clock::now() - start).count()) + millisOffset;
 }
+
+void advanceMillis(unsigned long ms) { millisOffset += ms; }

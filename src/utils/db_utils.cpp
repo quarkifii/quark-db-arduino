@@ -89,6 +89,53 @@ bool DBUtils::recoverList(String listName) {
   return true;
 }
 
+// Sync metadata of a list: instance id, sequence counter and options
+String DBUtils::getSyncMetaFileName(String listName) {
+  return "/__quarkdb__/" + listName + ".sync";
+}
+
+// Oplog of a list: one JSON line per change not yet dropped by rollover
+String DBUtils::getOplogFileName(String listName) {
+  return "/__quarkdb__/" + listName + ".oplog";
+}
+
+// Staging file a cloud snapshot is written to before it replaces the list
+String DBUtils::getRestoreFileName(String listName) {
+  return "/__quarkdb__/" + listName + ".rst";
+}
+
+// Hex id from the hardware random source plus uptime and a counter, so two
+// lists created in the same run or the same list created on two boots differ
+String DBUtils::generateInstanceId() {
+  static unsigned int counter = 0;
+  counter++;
+  char buf[24];
+  snprintf(buf, sizeof(buf), "%08lx%04lx%04x", randomValue(), millis() & 0xffffUL, counter & 0xffffU);
+  return String(buf);
+}
+
+unsigned long DBUtils::randomValue() {
+  #if defined (ESP8266)
+    return ESP.random();
+  #elif defined(ESP32)
+    return esp_random();
+  #else
+    return (unsigned long)rand();
+  #endif
+}
+
+// Bitwise so no 1 KB table is needed in flash; only used for snapshots
+unsigned long DBUtils::crc32(unsigned long crc, const char* data, size_t length) {
+  unsigned long c = (~crc) & 0xFFFFFFFFUL;
+  for (size_t i = 0; i < length; i++) {
+    c ^= (unsigned char)data[i];
+    for (int bit = 0; bit < 8; bit++) {
+      c = (c & 1UL) ? (c >> 1) ^ 0xEDB88320UL : c >> 1;
+    }
+  }
+  return (~c) & 0xFFFFFFFFUL;
+}
+
 bool DBUtils::validateListName(const char* instr) {
   if(strlen(instr) == 0 || strlen(instr) > __QUARKDB_MAX_LIST_NAME_LEN__) {
     return false;

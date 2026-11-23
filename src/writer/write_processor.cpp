@@ -39,7 +39,14 @@ DBWriteProcessor::DBWriteProcessor(byte fileMode) {
   this->maxRecordSize = __QUARKDB_MAX_RECORD_SIZE__;
   dbUtils = new DBUtils();
   dbFilter = new DBFilterProcessor();
+  listener = NULL;
 }
+
+// Observer notified after every successful write
+void DBWriteProcessor::setListener(DBWriteListener* listener) {
+  this->listener = listener;
+}
+
 // Create a list in the filesystem
 bool DBWriteProcessor::createList(String listName) {
   listName.trim();
@@ -59,6 +66,9 @@ bool DBWriteProcessor::createList(String listName) {
     return false;
   }
   file.close();
+  if (listener != NULL) {
+    listener->onListCreated(listName);
+  }
   return true;
 }
 
@@ -84,7 +94,13 @@ bool DBWriteProcessor::deleteList(String listName) {
   if(SPIFFS.exists(newFileName) && !SPIFFS.remove(newFileName)) {
     return false;
   }
-  return SPIFFS.remove(fileName);
+  if (!SPIFFS.remove(fileName)) {
+    return false;
+  }
+  if (listener != NULL) {
+    listener->onListDeleted(listName);
+  }
+  return true;
 }
 
 // Update records in the list
@@ -97,7 +113,15 @@ int DBWriteProcessor::updateRecords(String listName , String selector,JsonObject
   }
   String updateObjectJson;
   serializeJson((*jsonObject), updateObjectJson);
-  return this->updateFromJson(listName, &filterDoc , updateObjectJson);
+  int count = this->updateFromJson(listName, &filterDoc , updateObjectJson);
+  if (count > 0 && listener != NULL) {
+    // Canonical single-line selector for the oplog
+    String selectorJson;
+    serializeJson(filterDoc, selectorJson);
+    listName.trim();
+    listener->onRecordsUpdated(listName, selectorJson, updateObjectJson, count);
+  }
+  return count;
 }
 
 // Update records in the list
@@ -113,7 +137,14 @@ int DBWriteProcessor::deleteRecords(String listName, String selector) {
     Serial.println("ERROR: Invalid filter->" + selector);
     return -1;
   }
-  return this->deleteFromJson(listName, &filterDoc);
+  int count = this->deleteFromJson(listName, &filterDoc);
+  if (count > 0 && listener != NULL) {
+    String selectorJson;
+    serializeJson(filterDoc, selectorJson);
+    listName.trim();
+    listener->onRecordsDeleted(listName, selectorJson, count);
+  }
+  return count;
 }
 // Delete records in the list
 int DBWriteProcessor::deleteFromJson(String listName, JsonDocument* filterDoc) {
@@ -233,6 +264,9 @@ bool DBWriteProcessor::addRecord(String listName, JsonObject* jsonObject) {
   writeOk = writeOk && file.println(jsonString) == jsonString.length() + 2;
   Serial.println("writing record " +jsonString );
   file.close();
+  if (writeOk && listener != NULL) {
+    listener->onRecordAdded(listName, jsonString);
+  }
   return writeOk;
 }
 

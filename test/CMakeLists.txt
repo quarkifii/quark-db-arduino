@@ -59,7 +59,8 @@ function(add_quarkdb_test_target platform)
     ARDUINOJSON_ENABLE_ARDUINO_STRING=1
     ARDUINOJSON_ENABLE_ARDUINO_PRINT=1
     ARDUINOJSON_ENABLE_ARDUINO_STREAM=1)
-  # mocks/ comes first so <Arduino.h>, <FS.h>, <SPIFFS.h>, <SPI.h> resolve to the doubles.
+  # mocks/ comes first so <Arduino.h>, <FS.h>, <SPIFFS.h>, <SPI.h> and
+  # <PubSubClient.h> resolve to the doubles.
   target_include_directories(${target} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/mocks
     ${QUARKDB_SRC_DIR}

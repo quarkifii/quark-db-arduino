@@ -8,6 +8,8 @@
 #
 #   ./run_tests.sh              build + run all tests for esp8266 and esp32
 #                               (always under AddressSanitizer, LeakSanitizer and UBSan)
+#   ./run_tests.sh --cloud      only the cloud backup tests (oplog, MQTT mock,
+#                               transport and sync protocol; suites named Cloud*)
 #   ./run_tests.sh --gtest_filter='QuarkDBTest.Update*'   any gtest flag works
 #   ./run_tests.sh --clean      drop the cached build volume first
 set -euo pipefail

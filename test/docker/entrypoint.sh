@@ -5,14 +5,30 @@
 
 # Runs inside the container: configure, build and run the QuarkDB tests.
 # Expects the repository mounted at /quarkdb and a build cache at /build.
+#
+#   --cloud   run only the cloud backup tests (every suite named Cloud*:
+#             CloudMqttMock, CloudTransport, CloudTopicMatch, CloudOplog,
+#             CloudSync); any other argument is passed to gtest as is
 set -euo pipefail
 
+CLOUD_ONLY=0
+USER_FILTER=0
 GTEST_ARGS=()
 for arg in "$@"; do
   case "$arg" in
+    --cloud) CLOUD_ONLY=1 ;;
+    --gtest_filter=*) USER_FILTER=1; GTEST_ARGS+=("$arg") ;;
     *) GTEST_ARGS+=("$arg") ;;
   esac
 done
+if [ "$CLOUD_ONLY" = 1 ]; then
+  if [ "$USER_FILTER" = 1 ]; then
+    echo "--cloud ignored: an explicit --gtest_filter was given"
+  else
+    GTEST_ARGS+=("--gtest_filter=Cloud*")
+    echo "Test config: cloud backup (suites Cloud*)"
+  fi
+fi
 
 BUILD_DIR="/build/tests"
 cmake -S /quarkdb/test -B "$BUILD_DIR" \

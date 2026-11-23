@@ -8,6 +8,17 @@ An [Arduino](https://arduino.cc/) library for managing data just like any other 
 Data managed using ArduinoJson and SPIFFS file system for ESP boards.    
 API and usage details can be found [here](/API.md)
 
+### Cloud backup over MQTT
+Lists can be backed up to the cloud through an MQTT topic pair. The device
+stays the master copy: every change is logged to a per list oplog and
+published as a delta when connected, accumulated on flash while offline and
+sent as a snapshot when the oplog rolled over. A list can be restored from
+the cloud copy on demand or automatically after a flash wipe. Works with
+[PubSubClient](https://github.com/knolleary/pubsubclient) out of the box
+(`QuarkMqttTransport.h`) or any client behind the `QuarkTransport`
+interface (`QuarkTransport.h`). See [Cloud Backup over MQTT](/API.md#cloud-backup-over-mqtt) and
+[examples/cloud-sync](examples/cloud-sync).
+
 
 ## Compatible Hardware
 
@@ -37,11 +48,16 @@ See [API and CLI commands](/API.md).
 
 See [examples](examples) folder.
 
+## Tests
+
+Host unit tests (no board needed) live in [test](test); `./run_tests.sh`
+runs everything and `./run_tests.sh --cloud` runs the cloud backup tests.
+
 ## More Information
 
 More information of Quarkifi DB can be found [here](https://qstream.quarkifi.com/quarkdb/).
 
-For any issue please reach out to support@quarkifi.com or raise an issue.
+For any issue please reach out to xxxxxxxxxxxxxxxxxxx or raise an issue.
 
 
 ## License

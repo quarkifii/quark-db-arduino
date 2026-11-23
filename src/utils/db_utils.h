@@ -44,6 +44,17 @@ class DBUtils {
     String getNewFileName(String listName);
     bool installNewFile(String listName);
     bool recoverList(String listName);
+    // Cloud sync files of a list (see sync/oplog.h)
+    String getSyncMetaFileName(String listName);
+    String getOplogFileName(String listName);
+    String getRestoreFileName(String listName);
+    // Random id identifying one incarnation of a list to the cloud
+    String generateInstanceId();
+    // 32 bit value from the hardware random source
+    unsigned long randomValue();
+    // CRC-32 (IEEE 802.3, same result as zlib's crc32()): pass 0 to start,
+    // the previous result to continue over the next block
+    static unsigned long crc32(unsigned long crc, const char* data, size_t length);
 };
 
 #endif

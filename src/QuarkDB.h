@@ -26,6 +26,10 @@
 #include "reader/read_processor.h"
 #include "writer/write_processor.h"
 #include "command/command_parser.h"
+#include "QuarkTransport.h"
+#include "sync/sync_config.h"
+#include "sync/oplog.h"
+#include "sync/sync_manager.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
@@ -40,6 +44,8 @@ class QuarkDB {
     DBReadProcessor* readProcessor;
     DBWriteProcessor* writeProcessor;
     CommandParser* commandParser;
+    DBOplog oplog;
+    DBSyncManager syncManager;
   public:
     QuarkDB();
     bool init(byte mode);
@@ -57,6 +63,32 @@ class QuarkDB {
     void setMaxRecords(int maxRecords);
     void setMaxRecordSize(int maxRecordSize);       
     JsonDocument * getDBStat();
+
+    // ---- Cloud backup over MQTT (see sync/sync_manager.h for the protocol) ----
+    // Attach the transport and configuration. Lists still need enableListSync().
+    bool enableSync(QuarkTransport* transport, const QuarkSyncConfig& config);
+    // Detach the transport; changes keep accumulating in the oplogs
+    void disableSync();
+    bool isSyncEnabled();
+    // Start logging changes of an existing list. Persists across reboots.
+    bool enableListSync(String listName, QuarkListSyncOptions options = QuarkListSyncOptions());
+    // Stop logging and forget the oplog of a list (the cloud copy is left as is)
+    bool disableListSync(String listName);
+    bool isListSyncEnabled(String listName);
+    // Call once the MQTT connection is (re)established: subscribes and asks
+    // the cloud what it holds for every synced list. Returns the number of
+    // lists processed or -1 when offline / sync not enabled.
+    int syncCloud();
+    // Feed every message received on the subscribe topic. Returns true if
+    // the message was a sync message and was handled.
+    bool handleMessage(const char* topic, String payload);
+    bool handleMessage(const char* topic, const uint8_t* payload, unsigned int length);
+    // On demand pull of the cloud copy, which replaces the local list once
+    // its snapshot arrives through handleMessage(). 1 = requested, 0 = offline,
+    // -1 = list not synced.
+    int restoreFromCloud(String listName);
+    // Sync state of a list: inst, seq, cloudSeq, state, pending, restore, dropped
+    bool getSyncInfo(String listName, JsonDocument* info);
 };
 
 #endif
