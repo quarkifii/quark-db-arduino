@@ -130,6 +130,7 @@ class DBSyncManager : public DBWriteListener {
     bool disableListSync(String listName);
     bool isListSyncEnabled(String listName);
     int syncCloud();
+    bool isQuarkDBMessage(const char* topic, const String& payload);
     bool handleMessage(const char* topic, const String& payload);
     int restoreFromCloud(String listName);
     bool getSyncInfo(String listName, JsonDocument* info);

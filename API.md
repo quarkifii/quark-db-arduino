@@ -503,10 +503,16 @@ new, empty list (`QUARK_RESTORE_NEVER`).
 ### Handle Cloud Messages
 ```arduino
 void onMqttMessage(char* topic, uint8_t* payload, unsigned int length) {
-  if (quarkDB.handleMessage(topic, payload, length)) return;   // a sync message
+  if (quarkDB.isQuarkDBMessage(topic, payload, length)) {
+    if (quarkDB.handleMessage(topic, payload, length)) {
+      return;
+    }
+  }
   // ... other topics
 }
 ```
+`isQuarkDBMessage(topic, payload, length)` and `isQuarkDBMessage(const char* topic, String payload)` parse the payload as JSON and return `true` when it is a JSON object with `"__quarkdb__msg__": true` (within `maxInboundBytes`), or `false` otherwise.
+
 `handleMessage(const char* topic, String payload)` is available too. Returns
 `true` if the message was on the subscribe topic, well formed, for a synced
 list and handled. Messages for other devices (a `dev` field that differs from
@@ -580,7 +586,8 @@ if (quarkDB.getSyncInfo("config", &info)) {
   costs one extra flash write, not two.
 
 ### Messages
-All messages are JSON objects with `type`, `list`, `inst` (and `dev` when
+All messages are JSON objects with `"__quarkdb__msg__": true` (added to every
+outbound message by the device), `type`, `list`, `inst` (and `dev` when
 configured). `maxPayloadBytes` applies to every message the device sends.
 
 Every message the device publishes carries a numeric **message id** `mid`
@@ -601,17 +608,17 @@ from being applied to the wrong request:
 Device to cloud, on `publishTopic`:
 | Message | Meaning |
 |---------|---------|
-| `{"type":"query","list":"config","inst":"a1","seq":12,"mid":101}` | What does the cloud hold for this list? `inst` is `""` for a list the device deleted. |
-| `{"type":"op","list":"config","inst":"a1","seq":13,"mid":102,"op":"add","doc":{...}}` | One oplog entry. `op` is `add` (`doc`), `update` (`sel`, `doc`, `n`), `delete` (`sel`, `n`) or `drop` (the list was deleted; `inst` is the deleted instance). `sel` is the selector the cloud has to apply with the same matching rules as `getRecords()`. |
-| `{"type":"snapshot","list":"config","inst":"a1","seq":13,"mid":103,"i":0,"last":true,"docs":[...],"crc":3421780262,"count":7}` | Full copy in chunks of at most `maxPayloadBytes`, each with its own `mid`. Chunk `0` replaces the cloud copy; the chunk with `last` commits it at `seq` and carries the integrity check: `count` documents in total and `crc`, the CRC-32 (IEEE, same as zlib's `crc32()`) over every document in compact JSON form followed by `\n`, in order, across all chunks. |
-| `{"type":"restore","list":"config","inst":"a1","seq":13,"mid":104}` | Please send your copy as `snapshot` chunks carrying this `mid`. |
+| `{"__quarkdb__msg__":true,"type":"query","list":"config","inst":"a1","seq":12,"mid":101}` | What does the cloud hold for this list? `inst` is `""` for a list the device deleted. |
+| `{"__quarkdb__msg__":true,"type":"op","list":"config","inst":"a1","seq":13,"mid":102,"op":"add","doc":{...}}` | One oplog entry. `op` is `add` (`doc`), `update` (`sel`, `doc`, `n`), `delete` (`sel`, `n`) or `drop` (the list was deleted; `inst` is the deleted instance). `sel` is the selector the cloud has to apply with the same matching rules as `getRecords()`. |
+| `{"__quarkdb__msg__":true,"type":"snapshot","list":"config","inst":"a1","seq":13,"mid":103,"i":0,"last":true,"docs":[...],"crc":3421780262,"count":7}` | Full copy in chunks of at most `maxPayloadBytes`, each with its own `mid`. Chunk `0` replaces the cloud copy; the chunk with `last` commits it at `seq` and carries the integrity check: `count` documents in total and `crc`, the CRC-32 (IEEE, same as zlib's `crc32()`) over every document in compact JSON form followed by `\n`, in order, across all chunks. |
+| `{"__quarkdb__msg__":true,"type":"restore","list":"config","inst":"a1","seq":13,"mid":104}` | Please send your copy as `snapshot` chunks carrying this `mid`. |
 
 Cloud to device, on `subscribeTopic`:
 | Message | Meaning |
 |---------|---------|
-| `{"type":"status","list":"config","inst":"a1","seq":10,"mid":101}` | Answer to the `query` with that `mid`, acted on only while the device waits for it. `inst` `""` means the cloud has no copy. The device classifies `inst` against its current id, its history of deleted ids and the `lost` flag (table above) and sends the missing ops, a snapshot, a `restore` or a `drop`. Same instance and `seq` equal: nothing to do. |
-| `{"type":"ack","list":"config","mid":102}` | Acknowledges the message published with that `mid` (`inst` optional, must match if present). Moves the known cloud position forward to the seq that message carried, never backwards; never triggers a resend. |
-| `{"type":"request","list":"config","inst":"a1","from":34,"to":45}` | The cloud found a gap and asks for a range. Handled like a `status` with `seq` = `from - 1`: the device replays from `from` to its latest entry, or sends a snapshot when its oplog no longer reaches back to `from` (rolled over) or `from` is beyond what it ever issued. Throttled by `minCloudRequestIntervalMs`. |
-| `{"type":"snapshot","list":"config","inst":"a1","seq":13,"mid":104,"i":0,"last":true,"docs":[...],"crc":...,"count":...}` | Answer to `restore`, same shape as above, every chunk carrying the `mid` of the `restore`. Chunks must arrive in order starting at `0`; `inst` is read from chunk `0`. The last chunk must carry `crc` and `count` computed as above; the device compares them with what it staged and installs the copy only on a match. Documents are compacted by the device before hashing, so the cloud's wire formatting does not matter, but the documents must be the compact strings it received from the device (key order and number formatting are part of the checksum). |
+| `{"__quarkdb__msg__":true,"type":"status","list":"config","inst":"a1","seq":10,"mid":101}` | Answer to the `query` with that `mid`, acted on only while the device waits for it. `inst` `""` means the cloud has no copy. The device classifies `inst` against its current id, its history of deleted ids and the `lost` flag (table above) and sends the missing ops, a snapshot, a `restore` or a `drop`. Same instance and `seq` equal: nothing to do. |
+| `{"__quarkdb__msg__":true,"type":"ack","list":"config","mid":102}` | Acknowledges the message published with that `mid` (`inst` optional, must match if present). Moves the known cloud position forward to the seq that message carried, never backwards; never triggers a resend. |
+| `{"__quarkdb__msg__":true,"type":"request","list":"config","inst":"a1","from":34,"to":45}` | The cloud found a gap and asks for a range. Handled like a `status` with `seq` = `from - 1`: the device replays from `from` to its latest entry, or sends a snapshot when its oplog no longer reaches back to `from` (rolled over) or `from` is beyond what it ever issued. Throttled by `minCloudRequestIntervalMs`. |
+| `{"__quarkdb__msg__":true,"type":"snapshot","list":"config","inst":"a1","seq":13,"mid":104,"i":0,"last":true,"docs":[...],"crc":...,"count":...}` | Answer to `restore`, same shape as above, every chunk carrying the `mid` of the `restore`. Chunks must arrive in order starting at `0`; `inst` is read from chunk `0`. The last chunk must carry `crc` and `count` computed as above; the device compares them with what it staged and installs the copy only on a match. Documents are compacted by the device before hashing, so the cloud's wire formatting does not matter, but the documents must be the compact strings it received from the device (key order and number formatting are part of the checksum). |
 
 For any issue please reach out to xxxxxxxxxxxxxxxxxxx or raise an issue

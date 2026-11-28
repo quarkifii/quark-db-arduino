@@ -144,7 +144,7 @@ bool DBSyncManager::publish(const String& payload) {
 
 // Start of every message; the caller adds its fields and the closing brace
 String DBSyncManager::header(const char* type, const String& listName, const String& inst, unsigned long mid) {
-  String head = "{\"type\":\"" + String(type) + "\",\"list\":\"" + listName + "\"";
+  String head = "{\"__quarkdb__msg__\":true,\"type\":\"" + String(type) + "\",\"list\":\"" + listName + "\"";
   if (config.deviceId.length() > 0) {
     head += ",\"dev\":\"" + jsonEscape(config.deviceId) + "\"";
   }
@@ -541,6 +541,25 @@ int DBSyncManager::restoreFromCloud(String listName) {
     return 0;
   }
   return sendRestore(s) ? 1 : 0;
+}
+
+bool DBSyncManager::isQuarkDBMessage(const char* topic, const String& payload) {
+  (void)topic;
+  if (payload.length() == 0) {
+    return false;
+  }
+  if (config.maxInboundBytes > 0 && payload.length() > config.maxInboundBytes) {
+    return false;
+  }
+  JsonDocument doc;
+  if (deserializeJson(doc, payload)) {
+    return false;
+  }
+  JsonObject msg = doc.as<JsonObject>();
+  if (msg.isNull()) {
+    return false;
+  }
+  return msg["__quarkdb__msg__"].is<bool>() && msg["__quarkdb__msg__"].as<bool>();
 }
 
 bool DBSyncManager::handleMessage(const char* topic, const String& payload) {

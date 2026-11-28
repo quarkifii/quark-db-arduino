@@ -35,11 +35,13 @@ unsigned long lastReconnectAttempt = 0;
 unsigned long lastWrite = 0;
 int counter = 0;
 
-// Every message from the broker goes to the DB; it ignores what is not a
-// sync message and returns false, so other topics can be handled after it.
+// Check whether an incoming MQTT payload is a QuarkDB sync message before
+// handing it to handleMessage(); non-QuarkDB messages fall through below.
 void onMqttMessage(char* topic, uint8_t* payload, unsigned int length) {
-  if (quarkDB.handleMessage(topic, payload, length)) {
-    return;
+  if (quarkDB.isQuarkDBMessage(topic, payload, length)) {
+    if (quarkDB.handleMessage(topic, payload, length)) {
+      return;
+    }
   }
   Serial.printf("Other message on %s\n", topic);
 }

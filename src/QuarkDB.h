@@ -79,6 +79,10 @@ class QuarkDB {
     // the cloud what it holds for every synced list. Returns the number of
     // lists processed or -1 when offline / sync not enabled.
     int syncCloud();
+    // Check whether a received payload is a QuarkDB sync message
+    // (JSON object with "__quarkdb__msg__": true).
+    bool isQuarkDBMessage(const char* topic, String payload);
+    bool isQuarkDBMessage(const char* topic, const uint8_t* payload, unsigned int length);
     // Feed every message received on the subscribe topic. Returns true if
     // the message was a sync message and was handled.
     bool handleMessage(const char* topic, String payload);

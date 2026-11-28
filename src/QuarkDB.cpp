@@ -177,12 +177,7 @@ int QuarkDB::syncCloud() {
   return syncManager.syncCloud();
 }
 
-bool QuarkDB::handleMessage(const char* topic, String payload) {
-  return syncManager.handleMessage(topic, payload);
-}
-
-// Convenience for PubSubClient callbacks, whose payload is not NUL terminated
-bool QuarkDB::handleMessage(const char* topic, const uint8_t* payload, unsigned int length) {
+static String payloadToString(const uint8_t* payload, unsigned int length) {
   String text;
   if (payload != nullptr) {
     text.reserve(length);
@@ -190,7 +185,25 @@ bool QuarkDB::handleMessage(const char* topic, const uint8_t* payload, unsigned 
       text += (char)payload[i];
     }
   }
-  return syncManager.handleMessage(topic, text);
+  return text;
+}
+
+bool QuarkDB::isQuarkDBMessage(const char* topic, String payload) {
+  return syncManager.isQuarkDBMessage(topic, payload);
+}
+
+// Convenience for PubSubClient callbacks, whose payload is not NUL terminated
+bool QuarkDB::isQuarkDBMessage(const char* topic, const uint8_t* payload, unsigned int length) {
+  return syncManager.isQuarkDBMessage(topic, payloadToString(payload, length));
+}
+
+bool QuarkDB::handleMessage(const char* topic, String payload) {
+  return syncManager.handleMessage(topic, payload);
+}
+
+// Convenience for PubSubClient callbacks, whose payload is not NUL terminated
+bool QuarkDB::handleMessage(const char* topic, const uint8_t* payload, unsigned int length) {
+  return syncManager.handleMessage(topic, payloadToString(payload, length));
 }
 
 int QuarkDB::restoreFromCloud(String listName) {

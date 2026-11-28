@@ -139,8 +139,8 @@ TEST_F(CloudSyncTest, OpMessagesCarryEveryOperationType) {
   clearPublished();
   ASSERT_TRUE(cloudSends(statusJson("cfg", inst("cfg"), 0)));
   ASSERT_EQ(types(), (std::vector<std::string>{"op", "op", "op"}));
-  EXPECT_EQ(payload(0), "{\"type\":\"op\",\"list\":\"cfg\",\"inst\":\"" + inst("cfg") + "\",\"mid\":" + std::to_string(mid(0)) +
-                            ",\"seq\":1,\"op\":\"add\",\"doc\":{\"name\":\"alice\",\"age\":30}}");
+  EXPECT_EQ(payload(0), "{\"__quarkdb__msg__\":true,\"type\":\"op\",\"list\":\"cfg\",\"inst\":\"" + inst("cfg") + "\",\"mid\":" +
+    std::to_string(mid(0)) + ",\"seq\":1,\"op\":\"add\",\"doc\":{\"name\":\"alice\",\"age\":30}}");
   JsonDocument upd = message(1);
   EXPECT_EQ(upd["op"].as<std::string>(), "update");
   EXPECT_EQ(upd["sel"]["age"].as<int>(), 30);
@@ -581,6 +581,48 @@ TEST_F(CloudSyncTest, SnapshotChunksMustCarryTheMidOfTheRestoreRequest) {
   EXPECT_TRUE(cloudSends(chunkFor + std::to_string(second) + "}"));
   EXPECT_EQ(findNames("cfg", "{}"), (Names{"c1"}));
   EXPECT_EQ(info("cfg")["restoreMid"].as<unsigned long>(), 0u);
+}
+
+// ----------------------------------------------------- isQuarkDBMessage ----
+
+TEST_F(CloudSyncTest, IsQuarkDBMessageChecksPayloadMarker) {
+  EXPECT_TRUE(db.isQuarkDBMessage(kIn, String(R"({"__quarkdb__msg__":true,"type":"status"})")));
+  EXPECT_TRUE(db.isQuarkDBMessage(nullptr, String(R"({ "__quarkdb__msg__" : true })")));
+  EXPECT_TRUE(db.isQuarkDBMessage("other/topic", String(R"({"__quarkdb__msg__":true})")));
+
+  std::string raw = R"({"__quarkdb__msg__":true})";
+  std::string padded = raw + "trailing-garbage";
+  EXPECT_TRUE(db.isQuarkDBMessage(kIn, reinterpret_cast<const uint8_t*>(padded.data()), static_cast<unsigned int>(raw.size())));
+
+  EXPECT_FALSE(db.isQuarkDBMessage(kIn, String(R"({"__quarkdb__msg__":false})")));
+  EXPECT_FALSE(db.isQuarkDBMessage(kIn, String(R"({"__quarkdb__msg__":"true"})")));
+  EXPECT_FALSE(db.isQuarkDBMessage(kIn, String(R"({"__quarkdb__msg__":1})")));
+  EXPECT_FALSE(db.isQuarkDBMessage(kIn, String(R"({"type":"status","list":"cfg"})")));
+  EXPECT_FALSE(db.isQuarkDBMessage(kIn, String("[1,2]")));
+  EXPECT_FALSE(db.isQuarkDBMessage(kIn, String("{not json")));
+  EXPECT_FALSE(db.isQuarkDBMessage(kIn, String("")));
+  EXPECT_FALSE(db.isQuarkDBMessage(kIn, nullptr, 10));
+  EXPECT_FALSE(db.isQuarkDBMessage(kIn, reinterpret_cast<const uint8_t*>(raw.data()), 0));
+
+  config.maxInboundBytes = 64;
+  ASSERT_TRUE(enableSync());
+  EXPECT_FALSE(db.isQuarkDBMessage(
+      kIn, String(R"({"__quarkdb__msg__":true,"extra":"this-payload-exceeds-64-bytes-limit"})")));
+}
+
+TEST_F(CloudSyncTest, OutboundMessagesCarryQuarkDBMarker) {
+  seedSynced("cfg");
+  connectAndSync();
+  ASSERT_GE(publishedCount(), 1u);
+  EXPECT_TRUE(message(0)["__quarkdb__msg__"].is<bool>());
+  EXPECT_TRUE(message(0)["__quarkdb__msg__"].as<bool>());
+  EXPECT_TRUE(db.isQuarkDBMessage(kOut, String(payload(0).c_str())));
+
+  clearPublished();
+  ASSERT_TRUE(cloudSends(statusJson("cfg", inst("cfg"), 0)));
+  ASSERT_GE(publishedCount(), 1u);
+  EXPECT_TRUE(message(0)["__quarkdb__msg__"].is<bool>());
+  EXPECT_TRUE(message(0)["__quarkdb__msg__"].as<bool>());
 }
 
 // -------------------------------------------------------- handleMessage ----
